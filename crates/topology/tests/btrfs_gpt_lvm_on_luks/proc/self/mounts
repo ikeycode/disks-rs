@@ -1,2 +1,0 @@
-tests/btrfs_gpt_lvm_on_luks/dev/mapper/BogusInstall-root / btrfs rw,relatime,space_cache=v2,subvolid=5,subvol=/ 0 0
-

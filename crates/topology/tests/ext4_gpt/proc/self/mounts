@@ -1,1 +1,0 @@
-tests/ext4_gpt/dev/nvme0n1p1 / ext4 rw,relatime,errors=remount-ro 0 0
