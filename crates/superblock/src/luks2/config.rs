@@ -6,93 +6,107 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
 
-/// Top-level LUKS2 configuration structure representing a LUKS2 encrypted device
+/// Top-level LUKS2 configuration structure representing a LUKS2 encrypted device.
+/// This structure contains all the configuration needed to manage a LUKS2 device,
+/// including core configuration, keyslots and segments.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2Config {
-    /// Core configuration data
+    /// Core configuration data containing metadata and keyslot sizes
     pub config: Luks2ConfigData,
-    /// Map of keyslot IDs to keyslot configurations
+    /// Map of keyslot IDs to their corresponding keyslot configurations.
+    /// Each keyslot contains information about key derivation and storage.
     pub keyslots: HashMap<u64, Luks2Keyslot>,
-    /// Map of segment IDs to segment configurations
+    /// Map of segment IDs to their corresponding segment configurations.
+    /// Segments define the encrypted regions of the device.
     pub segments: HashMap<u64, Luks2Segment>,
     // pub tokens: HashMap<u64, Value>,
     // pub digests: HashMap<u64, Value>,
 }
 
-/// Core LUKS2 configuration data
+/// Core LUKS2 configuration data containing essential metadata about the encrypted device.
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2ConfigData {
-    /// Size of the JSON metadata area in bytes
+    /// Size of the JSON metadata area in bytes.
+    /// This defines how much space is reserved for the LUKS2 header.
     #[serde_as(as = "DisplayFromStr")]
     pub json_size: u64,
 
-    /// Size of the keyslots area in bytes
+    /// Size of the keyslots area in bytes.
+    /// This defines the total space available for storing encrypted keys.
     #[serde_as(as = "DisplayFromStr")]
     pub keyslots_size: u64,
 
-    /// Optional configuration flags
+    /// Optional configuration flags that modify device behavior.
+    /// These flags can affect how the device is activated and used.
     #[serde(default)]
     pub flags: Vec<String>,
 
-    /// Requirements for device activation
+    /// Requirements for device activation.
+    /// These define what conditions must be met to unlock the device.
     #[serde(default)]
     pub requirements: Vec<String>,
 }
 
-/// Key derivation function configuration
+/// Key derivation function (KDF) configuration used to generate encryption keys from passwords.
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2Kdf {
     /// Type of KDF (e.g. pbkdf2, argon2i, argon2id)
+    /// Specifies which algorithm is used for key derivation
     #[serde(rename = "type")]
     pub kdf_type: String,
-    /// Random salt used in key derivation
+    /// Random salt used in key derivation to prevent rainbow table attacks
     pub salt: String,
 
-    /// Hash algorithm (pbkdf2 only)
+    /// Hash algorithm used for PBKDF2
+    /// Only applicable when kdf_type is "pbkdf2"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
-    /// Number of iterations (pbkdf2 only)
+    /// Number of iterations for PBKDF2
+    /// Only applicable when kdf_type is "pbkdf2"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iterations: Option<u64>,
 
-    /// Time cost (argon2i/argon2id only)
+    /// Time cost parameter for Argon2
+    /// Only applicable when kdf_type is "argon2i" or "argon2id"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<u64>,
-    /// Memory usage in bytes (argon2i/argon2id only)
+    /// Memory usage in bytes for Argon2
+    /// Only applicable when kdf_type is "argon2i" or "argon2id"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<u64>,
-    /// Number of parallel threads (argon2i/argon2id only)
+    /// Number of parallel threads for Argon2
+    /// Only applicable when kdf_type is "argon2i" or "argon2id"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpus: Option<u64>,
 }
 
-/// Configuration for a single keyslot
+/// Configuration for a single keyslot containing key material and derivation settings.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2Keyslot {
-    /// Type of keyslot
+    /// Type of keyslot, defining how the key material is processed
     #[serde(rename = "type")]
     pub slot_type: String,
 
     /// Size of the keyslot key in bytes
     pub key_size: u64,
 
-    /// Storage area configuration
+    /// Storage area configuration defining where and how key material is stored
     pub area: Luks2KeyslotArea,
-    /// Key derivation parameters
+    /// Key derivation parameters used to process passwords into keys
     pub kdf: Luks2Kdf,
 }
 
-/// Configuration for keyslot storage area
+/// Configuration for keyslot storage area defining where encrypted keys are stored.
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2KeyslotArea {
-    /// Type of storage area
+    /// Type of storage area, defining how the area is organized
     #[serde(rename = "type")]
     pub area_type: String,
 
-    /// Offset in bytes where this area begins
+    /// Offset in bytes where this area begins on the device
     #[serde_as(as = "DisplayFromStr")]
     pub offset: u64,
 
@@ -100,27 +114,27 @@ pub struct Luks2KeyslotArea {
     #[serde_as(as = "DisplayFromStr")]
     pub size: u64,
 
-    /// Encryption algorithm used
+    /// Encryption algorithm used to protect stored key material
     pub encryption: String,
 
-    /// Size of encryption key in bytes
+    /// Size of encryption key in bytes used for this area
     pub key_size: u64,
 }
 
-/// Configuration for a disk segment
+/// Configuration for a disk segment defining an encrypted region of the device.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Luks2Segment {
-    /// Type of segment
+    /// Type of segment, defining how the region is processed
     #[serde(rename = "type")]
     pub segment_type: String,
-    /// Offset where segment begins
+    /// Offset where segment begins, as a string representation
     pub offset: String,
-    /// Size of segment
+    /// Size of segment, as a string representation
     pub size: String,
-    /// Initialization vector tweak
+    /// Initialization vector tweak used for encryption
     pub iv_tweak: String,
-    /// Encryption algorithm
+    /// Encryption algorithm used for this segment
     pub encryption: String,
-    /// Sector size in bytes
+    /// Sector size in bytes - the granularity of encryption
     pub sector_size: u64,
 }

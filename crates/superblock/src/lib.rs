@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! Superblock detection for various filesystems
+//! Superblock detection and handling for various filesystems
+//!
+//! This module provides functionality to detect and read superblocks from different
+//! filesystem types including Btrfs, Ext4, F2FS, LUKS2, and XFS.
 
 use std::io::{self, Read, Seek};
 
@@ -14,13 +17,18 @@ pub mod f2fs;
 pub mod luks2;
 pub mod xfs;
 
-/// Supported list of superblock readers
+/// Supported filesystem types that can be detected and read
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Kind {
+    /// Btrfs filesystem
     Btrfs,
+    /// Ext4 filesystem
     Ext4,
+    /// LUKS2 encrypted container
     LUKS2,
+    /// F2FS (Flash-Friendly File System)
     F2FS,
+    /// XFS filesystem
     XFS,
 }
 
@@ -36,43 +44,60 @@ impl std::fmt::Display for Kind {
     }
 }
 
+/// Common interface for reading filesystem superblocks
 pub trait Superblock: std::fmt::Debug + Sync + Send {
-    /// Return the superblock's kind
+    /// Returns the filesystem type of this superblock
     fn kind(&self) -> self::Kind;
 
-    /// Get the filesystem UUID
+    /// Returns the filesystem UUID if available
     fn uuid(&self) -> Result<String, self::Error>;
 
-    /// Get the volume label
+    /// Returns the volume label if available
     fn label(&self) -> Result<String, self::Error>;
 }
 
+/// Errors that can occur when reading superblocks
 #[derive(Debug, Error)]
 pub enum Error {
+    /// No known filesystem superblock was detected
     #[error("unknown superblock")]
     UnknownSuperblock,
 
+    /// The superblock data was invalid for the expected filesystem type
     #[error("decoding wrong superblock")]
     InvalidSuperblock,
 
-    // ie label requests on partially implemented superblocks
+    /// The requested feature is not implemented for this filesystem type
     #[error("unsupported feature")]
     UnsupportedFeature,
 
+    /// Error decoding UTF-8 string data
     #[error("invalid utf8 in decode: {0}")]
     Utf8Decoding(#[from] std::str::Utf8Error),
 
+    /// Error decoding UTF-16 string data
     #[error("invalid utf16 in decode: {0}")]
     Utf16Decoding(#[from] std::string::FromUtf16Error),
 
+    /// The superblock magic number was incorrect
     #[error("invalid magic in superblock")]
     InvalidMagic,
 
+    /// An I/O error occurred
     #[error("io: {0}")]
     IO(#[from] io::Error),
 }
 
-/// Attempt to find a superblock decoder for the given reader
+/// Attempts to detect and read a filesystem superblock from the given reader
+///
+/// # Arguments
+///
+/// * `reader` - Any type implementing Read + Seek traits
+///
+/// # Returns
+///
+/// Returns a boxed Superblock implementation if a known filesystem is detected,
+/// otherwise returns an Error.
 pub fn for_reader<R: Read + Seek>(reader: &mut R) -> Result<Box<dyn Superblock>, Error> {
     reader.rewind()?;
 

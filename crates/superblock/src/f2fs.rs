@@ -2,88 +2,162 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! F2FS superblock handling
+//! F2FS (Flash-Friendly File System) superblock handling
+//!
+//! This module implements parsing and access to the F2FS filesystem superblock,
+//! which contains critical metadata about the filesystem including:
+//! - Version information
+//! - Layout parameters (sector size, block size, segment size etc)
+//! - Block addresses for key filesystem structures
+//! - Volume name and UUID
+//! - Encryption settings
+//! - Device information
 
 use crate::{Error, Kind, Superblock};
 use std::io::{self, Read};
 use uuid::Uuid;
 use zerocopy::*;
 
-// Constants to allow us to move away from unsafe{} APIs
-// in future, i.e. read_array(MAX_EXTENSION) ...
+/// Maximum length of volume name
+pub const MAX_VOLUME_LEN: usize = 512;
+/// Maximum number of supported extensions
+pub const MAX_EXTENSION: usize = 64;
+/// Length of each extension entry
+pub const EXTENSION_LEN: usize = 8;
+/// Length of version string
+pub const VERSION_LEN: usize = 256;
+/// Maximum number of devices in array
+pub const MAX_DEVICES: usize = 8;
+/// Maximum number of quota types
+pub const MAX_QUOTAS: usize = 3;
+/// Length of stop reason string
+pub const MAX_STOP_REASON: usize = 32;
+/// Maximum number of recorded errors
+pub const MAX_ERRORS: usize = 16;
 
-const MAX_VOLUME_LEN: usize = 512;
-const MAX_EXTENSION: usize = 64;
-const EXTENSION_LEN: usize = 8;
-const VERSION_LEN: usize = 256;
-const MAX_DEVICES: usize = 8;
-const MAX_QUOTAS: usize = 3;
-const MAX_STOP_REASON: usize = 32;
-const MAX_ERRORS: usize = 16;
-
+/// Represents the F2FS superblock structure that exists on disk
 #[derive(Debug, FromBytes, Unaligned)]
 #[repr(C, packed)]
 pub struct F2FS {
-    magic: U32<LittleEndian>,
-    major_ver: U16<LittleEndian>,
-    minor_ver: U16<LittleEndian>,
-    log_sectorsize: U32<LittleEndian>,
-    log_sectors_per_block: U32<LittleEndian>,
-    log_blocksize: U32<LittleEndian>,
-    log_blocks_per_seg: U32<LittleEndian>,
-    segs_per_sec: U32<LittleEndian>,
-    secs_per_zone: U32<LittleEndian>,
-    checksum_offset: U32<LittleEndian>,
-    block_count: U64<LittleEndian>,
-    section_count: U32<LittleEndian>,
-    segment_count: U32<LittleEndian>,
-    segment_count_ckpt: U32<LittleEndian>,
-    segment_count_sit: U32<LittleEndian>,
-    segment_count_nat: U32<LittleEndian>,
-    segment_count_ssa: U32<LittleEndian>,
-    segment_count_main: U32<LittleEndian>,
-    segment0_blkaddr: U32<LittleEndian>,
-    cp_blkaddr: U32<LittleEndian>,
-    sit_blkaddr: U32<LittleEndian>,
-    nat_blkaddr: U32<LittleEndian>,
-    ssa_blkaddr: U32<LittleEndian>,
-    main_blkaddr: U32<LittleEndian>,
-    root_ino: U32<LittleEndian>,
-    node_ino: U32<LittleEndian>,
-    meta_ino: U32<LittleEndian>,
-    uuid: [u8; 16],
-    volume_name: [U16<LittleEndian>; MAX_VOLUME_LEN],
-    extension_count: U32<LittleEndian>,
-    extension_list: [[u8; EXTENSION_LEN]; MAX_EXTENSION],
-    cp_payload: U32<LittleEndian>,
-    version: [u8; VERSION_LEN],
-    init_version: [u8; VERSION_LEN],
-    feature: U32<LittleEndian>,
-    encryption_level: u8,
-    encryption_pw_salt: [u8; 16],
-    devs: [Device; MAX_DEVICES],
-    qf_ino: [U32<LittleEndian>; MAX_QUOTAS],
-    hot_ext_count: u8,
-    s_encoding: U16<LittleEndian>,
-    s_encoding_flags: U16<LittleEndian>,
-    s_stop_reason: [u8; MAX_STOP_REASON],
-    s_errors: [u8; MAX_ERRORS],
-    reserved: [u8; 258],
-    crc: U32<LittleEndian>,
+    /// Magic number to identify F2FS filesystem
+    pub magic: U32<LittleEndian>,
+    /// Major version of filesystem
+    pub major_ver: U16<LittleEndian>,
+    /// Minor version of filesystem
+    pub minor_ver: U16<LittleEndian>,
+    /// Log2 of sector size in bytes
+    pub log_sectorsize: U32<LittleEndian>,
+    /// Log2 of sectors per block
+    pub log_sectors_per_block: U32<LittleEndian>,
+    /// Log2 of block size in bytes
+    pub log_blocksize: U32<LittleEndian>,
+    /// Log2 of blocks per segment
+    pub log_blocks_per_seg: U32<LittleEndian>,
+    /// Number of segments per section
+    pub segs_per_sec: U32<LittleEndian>,
+    /// Number of sections per zone
+    pub secs_per_zone: U32<LittleEndian>,
+    /// Checksum offset within superblock
+    pub checksum_offset: U32<LittleEndian>,
+    /// Total block count
+    pub block_count: U64<LittleEndian>,
+    /// Total section count
+    pub section_count: U32<LittleEndian>,
+    /// Total segment count
+    pub segment_count: U32<LittleEndian>,
+    /// Number of segments for checkpoint
+    pub segment_count_ckpt: U32<LittleEndian>,
+    /// Number of segments for SIT
+    pub segment_count_sit: U32<LittleEndian>,
+    /// Number of segments for NAT
+    pub segment_count_nat: U32<LittleEndian>,
+    /// Number of segments for SSA
+    pub segment_count_ssa: U32<LittleEndian>,
+    /// Number of segments for main area
+    pub segment_count_main: U32<LittleEndian>,
+    /// First segment block address
+    pub segment0_blkaddr: U32<LittleEndian>,
+    /// Checkpoint block address
+    pub cp_blkaddr: U32<LittleEndian>,
+    /// SIT block address
+    pub sit_blkaddr: U32<LittleEndian>,
+    /// NAT block address
+    pub nat_blkaddr: U32<LittleEndian>,
+    /// SSA block address
+    pub ssa_blkaddr: U32<LittleEndian>,
+    /// Main area block address
+    pub main_blkaddr: U32<LittleEndian>,
+    /// Root inode number
+    pub root_ino: U32<LittleEndian>,
+    /// Node inode number
+    pub node_ino: U32<LittleEndian>,
+    /// Meta inode number
+    pub meta_ino: U32<LittleEndian>,
+    /// Filesystem UUID
+    pub uuid: [u8; 16],
+    /// Volume name in UTF-16
+    pub volume_name: [U16<LittleEndian>; MAX_VOLUME_LEN],
+    /// Number of supported extensions
+    pub extension_count: U32<LittleEndian>,
+    /// List of supported extensions
+    pub extension_list: [[u8; EXTENSION_LEN]; MAX_EXTENSION],
+    /// Checkpoint payload
+    pub cp_payload: U32<LittleEndian>,
+    /// Filesystem version string
+    pub version: [u8; VERSION_LEN],
+    /// Initial filesystem version
+    pub init_version: [u8; VERSION_LEN],
+    /// Feature flags
+    pub feature: U32<LittleEndian>,
+    /// Encryption level
+    pub encryption_level: u8,
+    /// Encryption password salt
+    pub encryption_pw_salt: [u8; 16],
+    /// Array of attached devices
+    pub devs: [Device; MAX_DEVICES],
+    /// Quota file inode numbers
+    pub qf_ino: [U32<LittleEndian>; MAX_QUOTAS],
+    /// Number of hot extensions
+    pub hot_ext_count: u8,
+    /// Character encoding
+    pub s_encoding: U16<LittleEndian>,
+    /// Encoding flags
+    pub s_encoding_flags: U16<LittleEndian>,
+    /// Filesystem stop reason
+    pub s_stop_reason: [u8; MAX_STOP_REASON],
+    /// Recent errors
+    pub s_errors: [u8; MAX_ERRORS],
+    /// Reserved space
+    pub reserved: [u8; 258],
+    /// Superblock checksum
+    pub crc: U32<LittleEndian>,
 }
 
-/// struct f2fs_device
+/// Represents a device entry in the F2FS superblock
 #[derive(Debug, Clone, Copy, FromBytes)]
 #[repr(C, packed)]
 pub struct Device {
-    path: [u8; 64],
-    total_segments: U32<LittleEndian>,
+    /// Device path
+    pub path: [u8; 64],
+    /// Total number of segments on device
+    pub total_segments: U32<LittleEndian>,
 }
 
-const MAGIC: U32<LittleEndian> = U32::new(0xF2F52010);
-const START_POSITION: u64 = 1024;
+/// F2FS superblock magic number for validation
+pub const MAGIC: U32<LittleEndian> = U32::new(0xF2F52010);
+/// Starting position of superblock in bytes
+pub const START_POSITION: u64 = 1024;
 
-/// Attempt to decode the Superblock from the given read stream
+/// Attempts to parse and decode an F2FS superblock from the given reader
+///
+/// # Arguments
+///
+/// * `reader` - Any type implementing Read trait to read superblock data from
+///
+/// # Returns
+///
+/// * `Ok(F2FS)` - Successfully parsed superblock
+/// * `Err(Error)` - Failed to read or parse superblock
 pub fn from_reader<R: Read>(reader: &mut R) -> Result<F2FS, Error> {
     // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
     io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
@@ -104,12 +178,14 @@ pub fn from_reader<R: Read>(reader: &mut R) -> Result<F2FS, Error> {
 }
 
 impl Superblock for F2FS {
-    /// Return the encoded UUID for this superblock
+    /// Returns the filesystem UUID as a hyphenated string
     fn uuid(&self) -> Result<String, Error> {
         Ok(Uuid::from_bytes(self.uuid).hyphenated().to_string())
     }
 
-    /// Return the volume label as valid utf16 String
+    /// Returns the volume label as a UTF-16 decoded string
+    ///
+    /// Handles null termination and invalid UTF-16 sequences
     fn label(&self) -> Result<String, Error> {
         // Convert the array of U16<LittleEndian> to u16
         let vol: Vec<u16> = self.volume_name.iter().map(|x| x.get()).collect();
@@ -118,6 +194,7 @@ impl Superblock for F2FS {
         Ok(prelim_label.trim_end_matches('\0').to_owned())
     }
 
+    /// Returns the filesystem type as F2FS
     fn kind(&self) -> Kind {
         Kind::F2FS
     }
