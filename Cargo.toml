@@ -12,6 +12,5 @@ members = [
 [workspace.dependencies]
 log = "0.4.21"
 thiserror = "2.0.3"
-nix = { version = "0.29.0", features = ["fs", "mount"] }
 uuid = { version = "1.8.0", features = ["v8"] }
 zstd = "0.13.1"
