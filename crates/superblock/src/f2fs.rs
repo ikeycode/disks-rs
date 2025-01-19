@@ -13,8 +13,7 @@
 //! - Encryption settings
 //! - Device information
 
-use crate::{Error, Kind, Superblock};
-use std::io::{self, Read};
+use crate::{Detection, Error};
 use uuid::Uuid;
 use zerocopy::*;
 
@@ -143,76 +142,39 @@ pub struct Device {
     pub total_segments: U32<LittleEndian>,
 }
 
+impl Detection for F2FS {
+    type Magic = U32<LittleEndian>;
+
+    const OFFSET: u64 = START_POSITION;
+
+    const MAGIC_OFFSET: u64 = START_POSITION;
+
+    const SIZE: usize = std::mem::size_of::<F2FS>();
+
+    fn is_valid_magic(magic: &Self::Magic) -> bool {
+        *magic == MAGIC
+    }
+}
+
 /// F2FS superblock magic number for validation
 pub const MAGIC: U32<LittleEndian> = U32::new(0xF2F52010);
 /// Starting position of superblock in bytes
 pub const START_POSITION: u64 = 1024;
 
-/// Attempts to parse and decode an F2FS superblock from the given reader
-///
-/// # Arguments
-///
-/// * `reader` - Any type implementing Read trait to read superblock data from
-///
-/// # Returns
-///
-/// * `Ok(F2FS)` - Successfully parsed superblock
-/// * `Err(Error)` - Failed to read or parse superblock
-pub fn from_reader<R: Read>(reader: &mut R) -> Result<F2FS, Error> {
-    // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
-    io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
-
-    // Safe zero-copy deserialization
-    let data = F2FS::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
-
-    if data.magic != MAGIC {
-        return Err(Error::InvalidMagic);
-    }
-
-    log::trace!(
-        "valid magic field: UUID={} [volume label: \"{}\"]",
-        data.uuid()?,
-        data.label().unwrap_or_else(|_| "[invalid utf8]".into())
-    );
-    Ok(data)
-}
-
-impl Superblock for F2FS {
+impl F2FS {
     /// Returns the filesystem UUID as a hyphenated string
-    fn uuid(&self) -> Result<String, Error> {
+    pub fn uuid(&self) -> Result<String, Error> {
         Ok(Uuid::from_bytes(self.uuid).hyphenated().to_string())
     }
 
     /// Returns the volume label as a UTF-16 decoded string
     ///
     /// Handles null termination and invalid UTF-16 sequences
-    fn label(&self) -> Result<String, Error> {
+    pub fn label(&self) -> Result<String, Error> {
         // Convert the array of U16<LittleEndian> to u16
         let vol: Vec<u16> = self.volume_name.iter().map(|x| x.get()).collect();
         let prelim_label = String::from_utf16(&vol)?;
         // Need valid grapheme step and skip (u16)\0 nul termination in fixed block size
         Ok(prelim_label.trim_end_matches('\0').to_owned())
-    }
-
-    /// Returns the filesystem type as F2FS
-    fn kind(&self) -> Kind {
-        Kind::F2FS
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use crate::{f2fs::from_reader, Superblock};
-    use std::fs;
-
-    #[test_log::test]
-    fn test_basic() {
-        let mut fi = fs::File::open("tests/f2fs.img.zst").expect("cannot open f2fs img");
-        let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
-        let sb = from_reader(&mut stream).expect("Cannot parse superblock");
-        let label = sb.label().expect("Cannot determine volume name");
-        assert_eq!(label, "blsforme testing");
-        assert_eq!(sb.uuid().unwrap(), "d2c85810-4e75-4274-bc7d-a78267af7443");
     }
 }

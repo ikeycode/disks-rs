@@ -12,8 +12,7 @@
 //! - Quota tracking data
 //! - Log and realtime extent details
 
-use crate::{Error, Kind, Superblock};
-use std::io::Read;
+use crate::Detection;
 use uuid::Uuid;
 use zerocopy::*;
 
@@ -165,60 +164,28 @@ pub struct XFS {
 /// XFS superblock magic number ('XFSB' in ASCII)
 pub const MAGIC: U32<BigEndian> = U32::new(0x58465342);
 
-/// Attempts to read and decode an XFS superblock from the given reader
-///
-/// # Arguments
-/// * `reader` - Any type implementing Read trait to read superblock data from
-///
-/// # Returns
-/// * `Ok(XFS)` - Successfully parsed superblock
-/// * `Err(Error)` - Failed to read/parse superblock or invalid magic number
-pub fn from_reader<R: Read>(reader: &mut R) -> Result<XFS, Error> {
-    let data = XFS::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
-
-    if data.magicnum != MAGIC {
-        Err(Error::InvalidMagic)
-    } else {
-        log::trace!(
-            "valid magic field: UUID={} [volume label: \"{}\"]",
-            data.uuid()?,
-            data.label().unwrap_or_else(|_| "[invalid utf8]".into())
-        );
-        Ok(data)
-    }
-}
-
-impl Superblock for XFS {
-    /// Returns the filesystem type
-    fn kind(&self) -> Kind {
-        Kind::XFS
-    }
-
+impl XFS {
     /// Returns the filesystem UUID as a properly formatted string
-    fn uuid(&self) -> Result<String, super::Error> {
+    pub fn uuid(&self) -> Result<String, super::Error> {
         Ok(Uuid::from_bytes(self.uuid).hyphenated().to_string())
     }
 
     /// Returns the volume label as a UTF-8 string, trimming any null termination
-    fn label(&self) -> Result<String, super::Error> {
+    pub fn label(&self) -> Result<String, super::Error> {
         Ok(std::str::from_utf8(&self.fname)?.trim_end_matches('\0').to_owned())
     }
 }
 
-#[cfg(test)]
-mod tests {
+impl Detection for XFS {
+    type Magic = U32<BigEndian>;
 
-    use crate::{xfs::from_reader, Superblock};
-    use std::fs;
+    const OFFSET: u64 = 0x0;
 
-    #[test_log::test]
-    fn test_basic() {
-        let mut fi = fs::File::open("tests/xfs.img.zst").expect("cannot open xfs img");
-        let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
-        let sb = from_reader(&mut stream).expect("Cannot parse superblock");
-        let label = sb.label().expect("Cannot determine volume name");
-        assert_eq!(label, "BLSFORME");
-        assert_eq!(sb.uuid().unwrap(), "45e8a3bf-8114-400f-95b0-380d0fb7d42d");
-        assert_eq!(sb.versionnum, 46245);
+    const MAGIC_OFFSET: u64 = 0x0;
+
+    const SIZE: usize = std::mem::size_of::<XFS>();
+
+    fn is_valid_magic(magic: &Self::Magic) -> bool {
+        *magic == MAGIC
     }
 }

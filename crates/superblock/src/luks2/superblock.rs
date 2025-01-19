@@ -21,10 +21,12 @@
 //! - JSON metadata area containing encryption parameters
 //!
 
-use std::{io::Read, ops::Sub};
+use std::{
+    io::{Read, Seek},
+    ops::Sub,
+};
 
-use crate::{Error, Kind, Superblock};
-use log;
+use crate::{Detection, Error};
 use zerocopy::*;
 
 use super::Luks2Config;
@@ -79,53 +81,44 @@ pub struct Luks2 {
 }
 
 /// Magic number constants for LUKS2 format identification
-pub struct Magic;
+pub struct MagicMatch;
 
-impl Magic {
+impl MagicMatch {
     /// Standard LUKS2 magic number
     pub const LUKS2: [u8; MAGIC_LEN] = [b'L', b'U', b'K', b'S', 0xba, 0xbe];
     /// Alternative LUKS2 magic number (reversed)
     pub const SKUL2: [u8; MAGIC_LEN] = [b'S', b'K', b'U', b'L', 0xba, 0xbe];
 }
 
-/// Attempt to decode the LUKS2 superblock from the given read stream
-pub fn from_reader<R: Read>(reader: &mut R) -> Result<Luks2, Error> {
-    let data = Luks2::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
+impl Detection for Luks2 {
+    type Magic = [u8; MAGIC_LEN];
 
-    match data.magic {
-        Magic::LUKS2 | Magic::SKUL2 => {
-            log::trace!(
-                "valid magic field: UUID={} [volume label: \"{}\"]",
-                data.uuid()?,
-                data.label().unwrap_or_else(|_| "[invalid utf8]".into())
-            );
-            Ok(data)
-        }
-        _ => Err(Error::InvalidMagic),
+    const OFFSET: u64 = 0;
+
+    const MAGIC_OFFSET: u64 = 0;
+
+    const SIZE: usize = std::mem::size_of::<Luks2>();
+
+    fn is_valid_magic(magic: &Self::Magic) -> bool {
+        *magic == MagicMatch::LUKS2 || *magic == MagicMatch::SKUL2
     }
 }
 
-impl Superblock for Luks2 {
-    fn kind(&self) -> Kind {
-        Kind::LUKS2
-    }
-
+impl Luks2 {
     /// Get the UUID of the LUKS2 volume
     ///
     /// Note: LUKS2 stores string UUID rather than 128-bit sequence
-    fn uuid(&self) -> Result<String, crate::Error> {
+    pub fn uuid(&self) -> Result<String, crate::Error> {
         Ok(std::str::from_utf8(&self.uuid)?.trim_end_matches('\0').to_owned())
     }
 
     /// Get the label of the LUKS2 volume
     ///
     /// Note: Label is often empty, set in config instead
-    fn label(&self) -> Result<String, crate::Error> {
+    pub fn label(&self) -> Result<String, crate::Error> {
         Ok(std::str::from_utf8(&self.label)?.trim_end_matches('\0').to_owned())
     }
-}
 
-impl Luks2 {
     /// Read and parse the JSON configuration areas from the LUKS2 header
     ///
     /// # Arguments
@@ -135,18 +128,15 @@ impl Luks2 {
     /// # Returns
     ///
     /// Returns parsed Luks2Config on success, Error on failure
-    pub fn read_config<R: Read>(&self, reader: &mut R) -> Result<Luks2Config, Error> {
+    pub fn read_config<R: Read + Seek>(&self, reader: &mut R) -> Result<Luks2Config, Error> {
         let mut json_data = vec![0u8; self.hdr_size.get().sub(4096) as usize];
+        // Skip the header and read the JSON data
+        reader.seek(std::io::SeekFrom::Start(std::mem::size_of::<Luks2>() as u64))?;
         reader.read_exact(&mut json_data)?;
 
         // clip the json_data at the first nul byte
         let raw_input = std::str::from_utf8(&json_data)?.trim_end_matches('\0');
-        match serde_json::from_str(raw_input) {
-            Ok(config) => Ok(config),
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-                Err(Error::InvalidSuperblock)
-            }
-        }
+        let config: Luks2Config = serde_json::from_str(raw_input)?;
+        Ok(config)
     }
 }

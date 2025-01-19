@@ -7,9 +7,7 @@
 //! This module provides functionality for reading and parsing BTRFS filesystem superblocks,
 //! which contain critical metadata about the filesystem including UUIDs and labels.
 
-use crate::{Error, Kind, Superblock};
-use log;
-use std::io::{self, Read};
+use crate::{Detection, Error};
 use uuid::Uuid;
 use zerocopy::*;
 
@@ -103,57 +101,28 @@ pub const START_POSITION: u64 = 0x10000;
 /// Magic number identifying a BTRFS superblock ("_BHRfS_M")
 pub const MAGIC: U64<LittleEndian> = U64::new(0x4D5F53665248425F);
 
-/// Attempt to decode the BTRFS superblock from the given read stream.
-///
-/// This will read past the initial superblock offset and validate the magic number
-/// before returning the parsed superblock structure.
-pub fn from_reader<R: Read>(reader: &mut R) -> Result<Btrfs, Error> {
-    // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
-    io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
+impl Detection for Btrfs {
+    type Magic = U64<LittleEndian>;
 
-    let data = Btrfs::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
+    const OFFSET: u64 = START_POSITION;
 
-    if data.magic != MAGIC {
-        Err(Error::InvalidMagic)
-    } else {
-        log::trace!(
-            "valid magic field: UUID={}, [volume label: \"{}\"]",
-            data.uuid()?,
-            data.label()?
-        );
-        Ok(data)
+    const MAGIC_OFFSET: u64 = START_POSITION + 0x40;
+
+    const SIZE: usize = std::mem::size_of::<Btrfs>();
+
+    fn is_valid_magic(magic: &Self::Magic) -> bool {
+        *magic == MAGIC
     }
 }
 
-impl Superblock for Btrfs {
+impl Btrfs {
     /// Return the encoded UUID for this superblock as a string
-    fn uuid(&self) -> Result<String, Error> {
+    pub fn uuid(&self) -> Result<String, Error> {
         Ok(Uuid::from_bytes(self.fsid).hyphenated().to_string())
     }
 
-    /// Return the filesystem type
-    fn kind(&self) -> Kind {
-        super::Kind::Btrfs
-    }
-
     /// Return the volume label as a string
-    fn label(&self) -> Result<String, Error> {
+    pub fn label(&self) -> Result<String, Error> {
         Ok(std::str::from_utf8(&self.label)?.trim_end_matches('\0').to_owned())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use crate::{btrfs::from_reader, Superblock};
-
-    #[test_log::test]
-    fn test_basic() {
-        let mut fi = fs::File::open("tests/btrfs.img.zst").expect("cannot open ext4 img");
-        let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
-        let sb = from_reader(&mut stream).expect("Cannot parse superblock");
-        assert_eq!(sb.uuid().unwrap(), "829d6a03-96a5-4749-9ea2-dbb6e59368b2");
-        assert_eq!(sb.label().unwrap(), "blsforme testing");
     }
 }

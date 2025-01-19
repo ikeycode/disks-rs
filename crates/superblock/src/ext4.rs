@@ -8,9 +8,7 @@
 //! The superblock contains critical metadata about the filesystem including UUID, volume label,
 //! and various configuration parameters.
 
-use crate::{Error, Kind, Superblock};
-use log;
-use std::io::{self, Read};
+use crate::{Detection, Error};
 use uuid::Uuid;
 use zerocopy::*;
 
@@ -195,62 +193,28 @@ pub const MAGIC: U16<LittleEndian> = U16::new(0xEF53);
 /// Start position of superblock in filesystem
 pub const START_POSITION: u64 = 1024;
 
-/// Attempt to decode the EXT4 superblock from the given read stream.
-///
-/// # Arguments
-/// * `reader` - Any type that implements Read to read the superblock data from
-///
-/// # Returns
-/// * `Ok(Ext4)` - Successfully parsed superblock
-/// * `Err(Error)` - Failed to parse superblock or invalid magic number
-pub fn from_reader<R: Read>(reader: &mut R) -> Result<Ext4, Error> {
-    // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
-    io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
+impl Detection for Ext4 {
+    type Magic = U16<LittleEndian>;
 
-    let data = Ext4::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
+    const OFFSET: u64 = START_POSITION;
 
-    if data.magic != MAGIC {
-        Err(Error::InvalidMagic)
-    } else {
-        log::trace!(
-            "valid magic field: UUID={} [volume label: \"{}\"]",
-            data.uuid()?,
-            data.label().unwrap_or_else(|_| "[invalid utf8]".into())
-        );
-        Ok(data)
+    const MAGIC_OFFSET: u64 = START_POSITION + 0x38;
+
+    const SIZE: usize = std::mem::size_of::<Ext4>();
+
+    fn is_valid_magic(magic: &Self::Magic) -> bool {
+        *magic == MAGIC
     }
 }
 
-impl super::Superblock for Ext4 {
+impl Ext4 {
     /// Return the encoded UUID for this superblock
-    fn uuid(&self) -> Result<String, Error> {
+    pub fn uuid(&self) -> Result<String, Error> {
         Ok(Uuid::from_bytes(self.uuid).hyphenated().to_string())
     }
 
     /// Return the volume label as valid utf8
-    fn label(&self) -> Result<String, super::Error> {
+    pub fn label(&self) -> Result<String, super::Error> {
         Ok(std::str::from_utf8(&self.volume_name)?.into())
-    }
-
-    fn kind(&self) -> Kind {
-        Kind::Ext4
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::fs;
-
-    use crate::{ext4::from_reader, Superblock};
-
-    #[test_log::test]
-    fn test_basic() {
-        let mut fi = fs::File::open("tests/ext4.img.zst").expect("cannot open ext4 img");
-        let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
-        let sb = from_reader(&mut stream).expect("Cannot parse superblock");
-        let label = sb.label().expect("Cannot determine volume name");
-        assert_eq!(label, "blsforme testing");
-        assert_eq!(sb.uuid().unwrap(), "731af94c-9990-4eed-944d-5d230dbe8a0d");
     }
 }
