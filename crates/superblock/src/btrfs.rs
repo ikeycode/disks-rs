@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! BTRFS superblock handling
-//! TODO: Add full representation of the superblock to allow us to
-//! discover volumes and the root label.
 
 use crate::{Error, Kind, Superblock};
 use log;
@@ -13,9 +11,6 @@ use uuid::Uuid;
 use zerocopy::*;
 
 /// BTRFS superblock definition (as seen in the kernel)
-/// This is a PARTIAL representation that matches only the
-/// first 72 bytes, verifies the magic, and permits extraction
-/// of the UUID
 #[derive(FromBytes, Debug)]
 #[repr(C)]
 pub struct Btrfs {
@@ -28,6 +23,33 @@ pub struct Btrfs {
     root: U64<LittleEndian>,
     chunk_root: U64<LittleEndian>,
     log_root: U64<LittleEndian>,
+    log_root_transid: U64<LittleEndian>,
+    total_bytes: U64<LittleEndian>,
+    bytes_used: U64<LittleEndian>,
+    root_dir_objectid: U64<LittleEndian>,
+    num_devices: U64<LittleEndian>,
+    sectorsize: U32<LittleEndian>,
+    nodesize: U32<LittleEndian>,
+    leafsize: U32<LittleEndian>,
+    stripesize: U32<LittleEndian>,
+    sys_chunk_array_size: U32<LittleEndian>,
+    chunk_root_generation: U64<LittleEndian>,
+    compat_flags: U64<LittleEndian>,
+    compat_ro_flags: U64<LittleEndian>,
+    incompat_flags: U64<LittleEndian>,
+    csum_type: U16<LittleEndian>,
+    root_level: u8,
+    chunk_root_level: u8,
+    log_root_level: u8,
+    dev_item: [u8; 98],
+    label: [u8; 256],
+    cache_generation: U64<LittleEndian>,
+    uuid_tree_generation: U64<LittleEndian>,
+    metadata_uuid: [u8; 16],
+    nr_global_roots: U64<LittleEndian>,
+    reserved: [u8; 32],
+    sys_chunk_array: [u8; 2048],
+    root_backup: [u8; 256],
 }
 
 // Superblock starts at 65536 for btrfs.
@@ -46,7 +68,11 @@ pub fn from_reader<R: Read>(reader: &mut R) -> Result<Btrfs, Error> {
     if data.magic != MAGIC {
         Err(Error::InvalidMagic)
     } else {
-        log::trace!("valid magic field: UUID={}", data.uuid()?);
+        log::trace!(
+            "valid magic field: UUID={}, [volume label: \"{}\"]",
+            data.uuid()?,
+            data.label()?
+        );
         Ok(data)
     }
 }
@@ -63,7 +89,7 @@ impl Superblock for Btrfs {
 
     /// We don't yet support labels here.
     fn label(&self) -> Result<String, Error> {
-        Err(Error::UnsupportedFeature)
+        Ok(std::str::from_utf8(&self.label)?.trim_end_matches('\0').to_owned())
     }
 }
 
@@ -79,5 +105,6 @@ mod tests {
         let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
         let sb = from_reader(&mut stream).expect("Cannot parse superblock");
         assert_eq!(sb.uuid().unwrap(), "829d6a03-96a5-4749-9ea2-dbb6e59368b2");
+        assert_eq!(sb.label().unwrap(), "blsforme testing");
     }
 }
