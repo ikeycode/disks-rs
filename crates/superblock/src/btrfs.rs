@@ -8,9 +8,7 @@
 
 use crate::{Error, Kind, Superblock};
 use log;
-use std::
-    io::{self, Read}
-;
+use std::io::{self, Read};
 use uuid::Uuid;
 use zerocopy::*;
 
