@@ -52,6 +52,9 @@ pub enum Error {
     #[error("unknown superblock")]
     UnknownSuperblock,
 
+    #[error("decoding wrong superblock")]
+    InvalidSuperblock,
+
     // ie label requests on partially implemented superblocks
     #[error("unsupported feature")]
     UnsupportedFeature,
@@ -116,7 +119,7 @@ mod tests {
 
     use super::for_reader;
 
-    #[test]
+    #[test_log::test]
     fn test_determination() {
         let tests = vec![
             ("btrfs", Kind::Btrfs),

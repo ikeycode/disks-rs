@@ -8,45 +8,42 @@
 
 use crate::{Error, Kind, Superblock};
 use log;
-use std::{
-    io::{self, Read},
-    slice,
-};
+use std::
+    io::{self, Read}
+;
 use uuid::Uuid;
+use zerocopy::*;
 
 /// BTRFS superblock definition (as seen in the kernel)
 /// This is a PARTIAL representation that matches only the
 /// first 72 bytes, verifies the magic, and permits extraction
 /// of the UUID
-#[derive(Debug)]
+#[derive(FromBytes, Debug)]
 #[repr(C)]
 pub struct Btrfs {
     csum: [u8; 32],
     fsid: [u8; 16],
-    bytenr: u64,
-    flags: u64,
-    magic: u64,
-    generation: u64,
-    root: u64,
-    chunk_root: u64,
-    log_root: u64,
+    bytenr: U64<LittleEndian>,
+    flags: U64<LittleEndian>,
+    magic: U64<LittleEndian>,
+    generation: U64<LittleEndian>,
+    root: U64<LittleEndian>,
+    chunk_root: U64<LittleEndian>,
+    log_root: U64<LittleEndian>,
 }
 
 // Superblock starts at 65536 for btrfs.
 const START_POSITION: u64 = 0x10000;
 
 // "_BHRfS_M"
-const MAGIC: u64 = 0x4D5F53665248425F;
+const MAGIC: U64<LittleEndian> = U64::new(0x4D5F53665248425F);
 
 /// Attempt to decode the Superblock from the given read stream
 pub fn from_reader<R: Read>(reader: &mut R) -> Result<Btrfs, Error> {
-    const SIZE: usize = std::mem::size_of::<Btrfs>();
-    let mut data: Btrfs = unsafe { std::mem::zeroed() };
-    let data_sliced = unsafe { slice::from_raw_parts_mut(&mut data as *mut _ as *mut u8, SIZE) };
-
     // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
     io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
-    reader.read_exact(data_sliced)?;
+
+    let data = Btrfs::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
 
     if data.magic != MAGIC {
         Err(Error::InvalidMagic)
@@ -78,7 +75,7 @@ mod tests {
 
     use crate::{btrfs::from_reader, Superblock};
 
-    #[test]
+    #[test_log::test]
     fn test_basic() {
         let mut fi = fs::File::open("tests/btrfs.img.zst").expect("cannot open ext4 img");
         let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");

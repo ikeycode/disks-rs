@@ -5,11 +5,9 @@
 //! F2FS superblock handling
 
 use crate::{Error, Kind, Superblock};
-use std::{
-    io::{self, Read},
-    ptr, slice,
-};
+use std::io::{self, Read};
 use uuid::Uuid;
+use zerocopy::*;
 
 // Constants to allow us to move away from unsafe{} APIs
 // in future, i.e. read_array(MAX_EXTENSION) ...
@@ -23,88 +21,86 @@ const MAX_QUOTAS: usize = 3;
 const MAX_STOP_REASON: usize = 32;
 const MAX_ERRORS: usize = 16;
 
-#[derive(Debug)]
+#[derive(Debug, FromBytes, Unaligned)]
 #[repr(C, packed)]
 pub struct F2FS {
-    magic: u32,
-    major_ver: u16,
-    minor_ver: u16,
-    log_sectorsize: u32,
-    log_sectors_per_block: u32,
-    log_blocksize: u32,
-    log_blocks_per_seg: u32,
-    segs_per_sec: u32,
-    secs_per_zone: u32,
-    checksum_offset: u32,
-    block_count: u64,
-    section_count: u32,
-    segment_count: u32,
-    segment_count_ckpt: u32,
-    segment_count_sit: u32,
-    segment_count_nat: u32,
-    segment_count_ssa: u32,
-    segment_count_main: u32,
-    segment0_blkaddr: u32,
-    cp_blkaddr: u32,
-    sit_blkaddr: u32,
-    nat_blkaddr: u32,
-    ssa_blkaddr: u32,
-    main_blkaddr: u32,
-    root_ino: u32,
-    node_ino: u32,
-    meta_ino: u32,
+    magic: U32<LittleEndian>,
+    major_ver: U16<LittleEndian>,
+    minor_ver: U16<LittleEndian>,
+    log_sectorsize: U32<LittleEndian>,
+    log_sectors_per_block: U32<LittleEndian>,
+    log_blocksize: U32<LittleEndian>,
+    log_blocks_per_seg: U32<LittleEndian>,
+    segs_per_sec: U32<LittleEndian>,
+    secs_per_zone: U32<LittleEndian>,
+    checksum_offset: U32<LittleEndian>,
+    block_count: U64<LittleEndian>,
+    section_count: U32<LittleEndian>,
+    segment_count: U32<LittleEndian>,
+    segment_count_ckpt: U32<LittleEndian>,
+    segment_count_sit: U32<LittleEndian>,
+    segment_count_nat: U32<LittleEndian>,
+    segment_count_ssa: U32<LittleEndian>,
+    segment_count_main: U32<LittleEndian>,
+    segment0_blkaddr: U32<LittleEndian>,
+    cp_blkaddr: U32<LittleEndian>,
+    sit_blkaddr: U32<LittleEndian>,
+    nat_blkaddr: U32<LittleEndian>,
+    ssa_blkaddr: U32<LittleEndian>,
+    main_blkaddr: U32<LittleEndian>,
+    root_ino: U32<LittleEndian>,
+    node_ino: U32<LittleEndian>,
+    meta_ino: U32<LittleEndian>,
     uuid: [u8; 16],
-    volume_name: [u16; MAX_VOLUME_LEN],
-    extension_count: u32,
+    volume_name: [U16<LittleEndian>; MAX_VOLUME_LEN],
+    extension_count: U32<LittleEndian>,
     extension_list: [[u8; EXTENSION_LEN]; MAX_EXTENSION],
-    cp_payload: u32,
+    cp_payload: U32<LittleEndian>,
     version: [u8; VERSION_LEN],
     init_version: [u8; VERSION_LEN],
-    feature: u32,
+    feature: U32<LittleEndian>,
     encryption_level: u8,
     encryption_pw_salt: [u8; 16],
     devs: [Device; MAX_DEVICES],
-    qf_ino: [u32; MAX_QUOTAS],
+    qf_ino: [U32<LittleEndian>; MAX_QUOTAS],
     hot_ext_count: u8,
-    s_encoding: u16,
-    s_encoding_flags: u16,
+    s_encoding: U16<LittleEndian>,
+    s_encoding_flags: U16<LittleEndian>,
     s_stop_reason: [u8; MAX_STOP_REASON],
     s_errors: [u8; MAX_ERRORS],
     reserved: [u8; 258],
-    crc: u32,
+    crc: U32<LittleEndian>,
 }
 
 /// struct f2fs_device
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, FromBytes)]
 #[repr(C, packed)]
 pub struct Device {
     path: [u8; 64],
-    total_segments: u32,
+    total_segments: U32<LittleEndian>,
 }
 
-const MAGIC: u32 = 0xF2F52010;
+const MAGIC: U32<LittleEndian> = U32::new(0xF2F52010);
 const START_POSITION: u64 = 1024;
 
 /// Attempt to decode the Superblock from the given read stream
 pub fn from_reader<R: Read>(reader: &mut R) -> Result<F2FS, Error> {
-    const SIZE: usize = std::mem::size_of::<F2FS>();
-    let mut data: F2FS = unsafe { std::mem::zeroed() };
-    let data_sliced = unsafe { slice::from_raw_parts_mut(&mut data as *mut _ as *mut u8, SIZE) };
-
     // Drop unwanted bytes (Seek not possible with zstd streamed inputs)
     io::copy(&mut reader.by_ref().take(START_POSITION), &mut io::sink())?;
-    reader.read_exact(data_sliced)?;
+
+    // Safe zero-copy deserialization
+    let data = F2FS::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
 
     if data.magic != MAGIC {
-        Err(Error::InvalidMagic)
-    } else {
-        log::trace!(
-            "valid magic field: UUID={} [volume label: \"{}\"]",
-            data.uuid()?,
-            data.label().unwrap_or_else(|_| "[invalid utf8]".into())
-        );
-        Ok(data)
+        return Err(Error::InvalidMagic);
     }
+
+    log::trace!(
+        "valid magic field: UUID={} [volume label: \"{}\"]",
+        data.uuid()?,
+        data.label().unwrap_or_else(|_| "[invalid utf8]".into())
+    );
+    Ok(data)
 }
 
 impl Superblock for F2FS {
@@ -115,7 +111,8 @@ impl Superblock for F2FS {
 
     /// Return the volume label as valid utf16 String
     fn label(&self) -> Result<String, Error> {
-        let vol = unsafe { ptr::read_unaligned(ptr::addr_of!(self.volume_name)) };
+        // Convert the array of U16<LittleEndian> to u16
+        let vol: Vec<u16> = self.volume_name.iter().map(|x| x.get()).collect();
         let prelim_label = String::from_utf16(&vol)?;
         // Need valid grapheme step and skip (u16)\0 nul termination in fixed block size
         Ok(prelim_label.trim_end_matches('\0').to_owned())
@@ -132,7 +129,7 @@ mod tests {
     use crate::{f2fs::from_reader, Superblock};
     use std::fs;
 
-    #[test]
+    #[test_log::test]
     fn test_basic() {
         let mut fi = fs::File::open("tests/f2fs.img.zst").expect("cannot open f2fs img");
         let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");

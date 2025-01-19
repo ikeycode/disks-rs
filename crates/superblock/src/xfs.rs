@@ -5,28 +5,29 @@
 //! XFS superblock handling
 
 use crate::{Error, Kind, Superblock};
-use std::{io::Read, slice};
+use std::io::Read;
 use uuid::Uuid;
+use zerocopy::*;
 
 // XFS typedefs
-type RfsBlock = u64;
-type RtbXlen = u64;
-type FsBlock = u64;
-type Ino = i64;
-type AgBlock = u32;
-type AgCount = u32;
-type ExtLen = u32;
-type Lsn = i64;
+type RfsBlock = U64<BigEndian>;
+type RtbXlen = U64<BigEndian>;
+type FsBlock = U64<BigEndian>;
+type Ino = I64<BigEndian>;
+type AgBlock = U32<BigEndian>;
+type AgCount = U32<BigEndian>;
+type ExtLen = U32<BigEndian>;
+type Lsn = I64<BigEndian>;
 
 const MAX_LABEL_LEN: usize = 12;
 
 /// XFS superblock, aligned to 64-bit
 /// Note: Multi-byte integers (>{i,u}8) must be read as Big Endian
-#[derive(Debug)]
+#[derive(FromBytes, Debug)]
 #[repr(C, align(8))]
 pub struct XFS {
-    magicnum: u32,
-    blocksize: u32,
+    magicnum: U32<BigEndian>,
+    blocksize: U32<BigEndian>,
     dblocks: RfsBlock,
     rblocks: RfsBlock,
     rextents: RtbXlen,
@@ -40,10 +41,10 @@ pub struct XFS {
     agcount: AgCount,
     rbmblocks: ExtLen,
     logblocks: ExtLen,
-    versionnum: u16,
-    sectsize: u16,
-    inodesize: u16,
-    inopblock: u16,
+    versionnum: U16<BigEndian>,
+    sectsize: U16<BigEndian>,
+    inodesize: U16<BigEndian>,
+    inopblock: U16<BigEndian>,
     fname: [u8; MAX_LABEL_LEN],
     blocklog: u8,
     sectlog: u8,
@@ -54,33 +55,33 @@ pub struct XFS {
     inprogress: u8,
     imax_pct: u8,
 
-    icount: u64,
-    ifree: u64,
-    fdblocks: u64,
-    frextents: u64,
+    icount: U64<BigEndian>,
+    ifree: U64<BigEndian>,
+    fdblocks: U64<BigEndian>,
+    frextents: U64<BigEndian>,
 
     uquotino: Ino,
     gquotino: Ino,
-    qflags: u16,
+    qflags: U16<BigEndian>,
     flags: u8,
     shared_vn: u8,
     inoalignment: ExtLen,
-    unit: u32,
-    width: u32,
+    unit: U32<BigEndian>,
+    width: U32<BigEndian>,
     dirblklog: u8,
     logsectlog: u8,
-    logsectsize: u16,
-    logsunit: u32,
-    features2: u32,
+    logsectsize: U16<BigEndian>,
+    logsunit: U32<BigEndian>,
+    features2: U32<BigEndian>,
 
-    bad_features: u32,
+    bad_features: U32<BigEndian>,
 
-    features_compat: u32,
-    features_ro_cmopat: u32,
-    features_incompat: u32,
-    features_log_incompat: u32,
+    features_compat: U32<BigEndian>,
+    features_ro_cmopat: U32<BigEndian>,
+    features_incompat: U32<BigEndian>,
+    features_log_incompat: U32<BigEndian>,
 
-    crc: u32,
+    crc: U32<BigEndian>,
     spino_align: ExtLen,
 
     pquotino: Ino,
@@ -89,17 +90,11 @@ pub struct XFS {
 }
 
 /// Magic = 'XFSB'
-const MAGIC: u32 = 0x58465342;
+const MAGIC: U32<BigEndian> = U32::new(0x58465342);
 
 /// Attempt to decode the Superblock from the given read stream
 pub fn from_reader<R: Read>(reader: &mut R) -> Result<XFS, Error> {
-    const SIZE: usize = std::mem::size_of::<XFS>();
-    let mut data: XFS = unsafe { std::mem::zeroed() };
-    let data_sliced = unsafe { slice::from_raw_parts_mut(&mut data as *mut _ as *mut u8, SIZE) };
-    reader.read_exact(data_sliced)?;
-
-    // Force big-endian
-    data.magicnum = data.magicnum.to_be();
+    let data = XFS::read_from_io(reader).map_err(|_| Error::InvalidSuperblock)?;
 
     if data.magicnum != MAGIC {
         Err(Error::InvalidMagic)
@@ -135,7 +130,7 @@ mod tests {
     use crate::{xfs::from_reader, Superblock};
     use std::fs;
 
-    #[test]
+    #[test_log::test]
     fn test_basic() {
         let mut fi = fs::File::open("tests/xfs.img.zst").expect("cannot open xfs img");
         let mut stream = zstd::stream::Decoder::new(&mut fi).expect("Unable to decode stream");
@@ -143,5 +138,6 @@ mod tests {
         let label = sb.label().expect("Cannot determine volume name");
         assert_eq!(label, "BLSFORME");
         assert_eq!(sb.uuid().unwrap(), "45e8a3bf-8114-400f-95b0-380d0fb7d42d");
+        assert_eq!(sb.versionnum, 46245);
     }
 }

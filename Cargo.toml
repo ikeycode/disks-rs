@@ -11,6 +11,8 @@ members = [
 
 [workspace.dependencies]
 log = "0.4.21"
+test-log = "0.2.17"
 thiserror = "2.0.3"
 uuid = { version = "1.8.0", features = ["v8"] }
 zstd = "0.13.1"
+zerocopy = "0.8.0"

@@ -9,6 +9,8 @@ edition = "2021"
 uuid = { workspace = true, features = ["v8"] }
 thiserror.workspace = true
 log.workspace = true
+zerocopy = { workspace = true, features = ["derive", "std"] }
 
 [dev-dependencies]
+test-log.workspace = true
 zstd.workspace = true
