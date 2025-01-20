@@ -2,13 +2,10 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-use std::{
-    fmt, fs, io,
-    path::{Path, PathBuf},
-};
+mod disk;
+use std::{fs, io, path::PathBuf};
 
-use partition::Partition;
-
+pub use disk::*;
 pub mod nvme;
 pub mod partition;
 pub mod scsi;
@@ -23,151 +20,6 @@ pub enum BlockDevice {
     /// A physical disk device
     Disk(Box<Disk>),
     Unknown,
-}
-
-/// Represents the type of disk device.
-#[derive(Debug)]
-pub enum Disk {
-    /// SCSI disk device (e.g. sda, sdb)
-    Scsi(scsi::Disk),
-    /// NVMe disk device (e.g. nvme0n1)
-    Nvme(nvme::Disk),
-}
-
-/// A basic disk representation containing common attributes shared by all disk types.
-/// This serves as the base structure that specific disk implementations build upon.
-#[derive(Debug)]
-pub struct BasicDisk {
-    /// Device name (e.g. sda, nvme0n1)
-    pub name: String,
-    /// Total number of sectors on the disk
-    pub sectors: u64,
-    /// Path to the device in sysfs
-    pub node: PathBuf,
-    /// Path to the device in /dev
-    pub device: PathBuf,
-    /// Optional disk model name
-    pub model: Option<String>,
-    /// Optional disk vendor name
-    pub vendor: Option<String>,
-    /// Partitions
-    pub partitions: Vec<Partition>,
-}
-
-impl fmt::Display for Disk {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let bytes = self.size();
-        let gib = bytes as f64 / 1_073_741_824.0;
-
-        write!(f, "{} ({:.2} GiB)", self.name(), gib)?;
-
-        if let Some(vendor) = self.vendor() {
-            write!(f, " - {}", vendor)?;
-        }
-
-        if let Some(model) = self.model() {
-            write!(f, " {}", model)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Disk {
-    /// Returns the name of the disk device.
-    pub fn name(&self) -> &str {
-        match self {
-            Disk::Scsi(disk) => &disk.name,
-            Disk::Nvme(disk) => &disk.name,
-        }
-    }
-
-    /// Returns the partitions on the disk.
-    pub fn partitions(&self) -> &[Partition] {
-        match self {
-            Disk::Scsi(disk) => &disk.partitions,
-            Disk::Nvme(disk) => &disk.partitions,
-        }
-    }
-
-    /// Returns the path to the disk device in dev.
-    pub fn device_path(&self) -> &Path {
-        match self {
-            Disk::Scsi(disk) => &disk.device,
-            Disk::Nvme(disk) => &disk.device,
-        }
-    }
-
-    /// Returns the total number of sectors on the disk.
-    pub fn sectors(&self) -> u64 {
-        match self {
-            Disk::Scsi(disk) => disk.sectors,
-            Disk::Nvme(disk) => disk.sectors,
-        }
-    }
-
-    /// Returns the size of the disk in bytes.
-    pub fn size(&self) -> u64 {
-        self.sectors() * 512
-    }
-
-    /// Returns the model name of the disk.
-    pub fn model(&self) -> Option<&str> {
-        match self {
-            Disk::Scsi(disk) => disk.model.as_deref(),
-            Disk::Nvme(disk) => disk.model.as_deref(),
-        }
-    }
-
-    /// Returns the vendor name of the disk.
-    pub fn vendor(&self) -> Option<&str> {
-        match self {
-            Disk::Scsi(disk) => disk.vendor.as_deref(),
-            Disk::Nvme(disk) => disk.vendor.as_deref(),
-        }
-    }
-}
-
-/// Trait for initializing different types of disk devices from sysfs.
-pub(crate) trait DiskInit: Sized {
-    /// Creates a new disk instance by reading information from the specified sysfs path.
-    ///
-    /// # Arguments
-    ///
-    /// * `root` - The root sysfs directory path
-    /// * `name` - The name of the disk device
-    ///
-    /// # Returns
-    ///
-    /// `Some(Self)` if the disk was successfully initialized, `None` otherwise
-    fn from_sysfs_path(root: &Path, name: &str) -> Option<Self>;
-}
-
-impl DiskInit for BasicDisk {
-    fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
-        let node = sysroot.join(name);
-
-        // Read the partitions of the disk if any
-        let mut partitions: Vec<_> = fs::read_dir(&node)
-            .ok()?
-            .filter_map(Result::ok)
-            .filter_map(|e| {
-                let name = e.file_name().to_string_lossy().to_string();
-                Partition::from_sysfs_path(sysroot, &name)
-            })
-            .collect();
-        partitions.sort_by_key(|p| p.number);
-
-        Some(Self {
-            name: name.to_owned(),
-            sectors: sysfs::sysfs_read(sysroot, &node, "size").unwrap_or(0),
-            device: PathBuf::from(DEVFS_DIR).join(name),
-            model: sysfs::sysfs_read(sysroot, &node, "device/model"),
-            vendor: sysfs::sysfs_read(sysroot, &node, "device/vendor"),
-            partitions,
-            node,
-        })
-    }
 }
 
 impl BlockDevice {
