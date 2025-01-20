@@ -6,6 +6,7 @@ mod disk;
 use std::{fs, io, path::PathBuf};
 
 pub use disk::*;
+pub mod mmc;
 pub mod nvme;
 pub mod partition;
 pub mod scsi;
@@ -58,6 +59,8 @@ impl BlockDevice {
                 Disk::Scsi(disk)
             } else if let Some(disk) = nvme::Disk::from_sysfs_path(&sysfs_dir, &entry) {
                 Disk::Nvme(disk)
+            } else if let Some(disk) = mmc::Disk::from_sysfs_path(&sysfs_dir, &entry) {
+                Disk::Mmc(disk)
             } else {
                 continue;
             };

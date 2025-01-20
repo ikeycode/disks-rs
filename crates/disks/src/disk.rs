@@ -9,13 +9,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{nvme, partition::Partition, scsi, sysfs, DEVFS_DIR};
+use crate::{mmc, nvme, partition::Partition, scsi, sysfs, DEVFS_DIR};
 
 /// Represents the type of disk device.
 #[derive(Debug)]
 pub enum Disk {
     /// SCSI disk device (e.g. sda, sdb)
     Scsi(scsi::Disk),
+    /// MMC disk device (e.g. mmcblk0)
+    Mmc(mmc::Disk),
     /// NVMe disk device (e.g. nvme0n1)
     Nvme(nvme::Disk),
 }
@@ -26,8 +28,9 @@ impl Deref for Disk {
     // Let scsi and nvme disks deref to BasicDisk
     fn deref(&self) -> &Self::Target {
         match self {
-            Disk::Scsi(disk) => disk,
+            Disk::Mmc(disk) => disk,
             Disk::Nvme(disk) => disk,
+            Disk::Scsi(disk) => disk,
         }
     }
 }
