@@ -77,32 +77,32 @@ impl Disk {
     /// Returns the name of the disk device.
     pub fn name(&self) -> &str {
         match self {
-            Disk::Scsi(disk) => &disk.disk.name,
-            Disk::Nvme(disk) => &disk.disk.name,
+            Disk::Scsi(disk) => &disk.name,
+            Disk::Nvme(disk) => &disk.name,
         }
     }
 
     /// Returns the partitions on the disk.
     pub fn partitions(&self) -> &[Partition] {
         match self {
-            Disk::Scsi(disk) => &disk.disk.partitions,
-            Disk::Nvme(disk) => &disk.disk.partitions,
+            Disk::Scsi(disk) => &disk.partitions,
+            Disk::Nvme(disk) => &disk.partitions,
         }
     }
 
     /// Returns the path to the disk device in dev.
     pub fn device_path(&self) -> &Path {
         match self {
-            Disk::Scsi(disk) => &disk.disk.device,
-            Disk::Nvme(disk) => &disk.disk.device,
+            Disk::Scsi(disk) => &disk.device,
+            Disk::Nvme(disk) => &disk.device,
         }
     }
 
     /// Returns the total number of sectors on the disk.
     pub fn sectors(&self) -> u64 {
         match self {
-            Disk::Scsi(disk) => disk.disk.sectors,
-            Disk::Nvme(disk) => disk.disk.sectors,
+            Disk::Scsi(disk) => disk.sectors,
+            Disk::Nvme(disk) => disk.sectors,
         }
     }
 
@@ -114,16 +114,16 @@ impl Disk {
     /// Returns the model name of the disk.
     pub fn model(&self) -> Option<&str> {
         match self {
-            Disk::Scsi(disk) => disk.disk.model.as_deref(),
-            Disk::Nvme(disk) => disk.disk.model.as_deref(),
+            Disk::Scsi(disk) => disk.model.as_deref(),
+            Disk::Nvme(disk) => disk.model.as_deref(),
         }
     }
 
     /// Returns the vendor name of the disk.
     pub fn vendor(&self) -> Option<&str> {
         match self {
-            Disk::Scsi(disk) => disk.disk.vendor.as_deref(),
-            Disk::Nvme(disk) => disk.disk.vendor.as_deref(),
+            Disk::Scsi(disk) => disk.vendor.as_deref(),
+            Disk::Nvme(disk) => disk.vendor.as_deref(),
         }
     }
 }

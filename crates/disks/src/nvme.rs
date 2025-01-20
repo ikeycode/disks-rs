@@ -9,16 +9,21 @@
 
 use crate::{BasicDisk, DiskInit};
 use regex::Regex;
-use std::{path::Path, sync::OnceLock};
+use std::{ops::Deref, path::Path, sync::OnceLock};
 
 /// Regex pattern to match valid NVMe device names (e.g. nvme0n1)
 static NVME_PATTERN: OnceLock<Regex> = OnceLock::new();
 
 /// Represents an NVMe disk device
 #[derive(Debug)]
-pub struct Disk {
-    /// The underlying basic disk implementation
-    pub(crate) disk: BasicDisk,
+pub struct Disk(pub BasicDisk);
+
+impl Deref for Disk {
+    type Target = BasicDisk;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl DiskInit for Disk {
@@ -35,9 +40,7 @@ impl DiskInit for Disk {
         let regex = NVME_PATTERN
             .get_or_init(|| Regex::new(r"^nvme\d+n\d+$").expect("Failed to initialise known-working regex"));
         if regex.is_match(name) {
-            Some(Self {
-                disk: BasicDisk::from_sysfs_path(sysroot, name)?,
-            })
+            Some(Self(BasicDisk::from_sysfs_path(sysroot, name)?))
         } else {
             None
         }

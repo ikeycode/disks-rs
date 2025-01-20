@@ -8,7 +8,7 @@
 //! the SCSI subsystem. This module handles enumeration and management of these devices,
 //! which appear as `/dev/sd*` block devices.
 
-use std::path::Path;
+use std::{ops::Deref, path::Path};
 
 use crate::{BasicDisk, DiskInit};
 
@@ -16,8 +16,14 @@ use crate::{BasicDisk, DiskInit};
 ///
 /// This struct wraps a BasicDisk to provide SCSI-specific functionality.
 #[derive(Debug)]
-pub struct Disk {
-    pub(crate) disk: BasicDisk,
+pub struct Disk(pub BasicDisk);
+
+impl Deref for Disk {
+    type Target = BasicDisk;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl DiskInit for Disk {
@@ -35,9 +41,7 @@ impl DiskInit for Disk {
     fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
         let matching = name.starts_with("sd") && name[2..].chars().all(char::is_alphabetic);
         if matching {
-            Some(Self {
-                disk: BasicDisk::from_sysfs_path(sysroot, name)?,
-            })
+            Some(Self(BasicDisk::from_sysfs_path(sysroot, name)?))
         } else {
             None
         }
