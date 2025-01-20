@@ -148,10 +148,10 @@ impl DiskInit for BasicDisk {
 
         Some(Self {
             name: name.to_owned(),
-            sectors: sysfs::sysfs_read(sysroot, &node, "size").unwrap_or(0),
+            sectors: sysfs::read(sysroot, &node, "size").unwrap_or(0),
             device: PathBuf::from(DEVFS_DIR).join(name),
-            model: sysfs::sysfs_read(sysroot, &node, "device/model"),
-            vendor: sysfs::sysfs_read(sysroot, &node, "device/vendor"),
+            model: sysfs::read(sysroot, &node, "device/model"),
+            vendor: sysfs::read(sysroot, &node, "device/vendor"),
             partitions,
         })
     }

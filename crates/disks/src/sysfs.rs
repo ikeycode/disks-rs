@@ -22,7 +22,7 @@ use std::{fs, path::Path, str::FromStr};
 /// # Type Parameters
 ///
 /// * `T` - Target type that implements FromStr for parsing the raw value
-pub(crate) fn sysfs_read<T>(sysroot: &Path, node: &Path, key: &str) -> Option<T>
+pub(crate) fn read<T>(sysroot: &Path, node: &Path, key: &str) -> Option<T>
 where
     T: FromStr,
 {
