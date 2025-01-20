@@ -10,14 +10,14 @@
 
 use std::path::Path;
 
-use crate::{partition::Partition, BasicDisk, DiskInit};
+use crate::{BasicDisk, DiskInit};
 
 /// Represents a SCSI disk device.
 ///
 /// This struct wraps a BasicDisk to provide SCSI-specific functionality.
 #[derive(Debug)]
 pub struct Disk {
-    disk: BasicDisk,
+    pub(crate) disk: BasicDisk,
 }
 
 impl DiskInit for Disk {
@@ -41,21 +41,5 @@ impl DiskInit for Disk {
         } else {
             None
         }
-    }
-}
-
-impl Disk {
-    /// Returns the name of the disk device.
-    ///
-    /// # Returns
-    ///
-    /// The device name (e.g. "sda", "sdb")
-    pub fn name(&self) -> &str {
-        &self.disk.name
-    }
-
-    /// Returns the partitions on the disk.
-    pub fn partitions(&self) -> &[Partition] {
-        &self.disk.partitions
     }
 }

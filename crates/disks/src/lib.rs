@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use std::{
-    fs, io,
+    fmt, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -54,20 +54,76 @@ pub struct BasicDisk {
     pub partitions: Vec<Partition>,
 }
 
+impl fmt::Display for Disk {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let bytes = self.size();
+        let gib = bytes as f64 / 1_073_741_824.0;
+
+        write!(f, "{} ({:.2} GiB)", self.name(), gib)?;
+
+        if let Some(vendor) = self.vendor() {
+            write!(f, " - {}", vendor)?;
+        }
+
+        if let Some(model) = self.model() {
+            write!(f, " {}", model)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Disk {
     /// Returns the name of the disk device.
     pub fn name(&self) -> &str {
         match self {
-            Disk::Scsi(disk) => disk.name(),
-            Disk::Nvme(disk) => disk.name(),
+            Disk::Scsi(disk) => &disk.disk.name,
+            Disk::Nvme(disk) => &disk.disk.name,
         }
     }
 
     /// Returns the partitions on the disk.
     pub fn partitions(&self) -> &[Partition] {
         match self {
-            Disk::Scsi(disk) => disk.partitions(),
-            Disk::Nvme(disk) => disk.partitions(),
+            Disk::Scsi(disk) => &disk.disk.partitions,
+            Disk::Nvme(disk) => &disk.disk.partitions,
+        }
+    }
+
+    /// Returns the path to the disk device in dev.
+    pub fn device_path(&self) -> &Path {
+        match self {
+            Disk::Scsi(disk) => &disk.disk.device,
+            Disk::Nvme(disk) => &disk.disk.device,
+        }
+    }
+
+    /// Returns the total number of sectors on the disk.
+    pub fn sectors(&self) -> u64 {
+        match self {
+            Disk::Scsi(disk) => disk.disk.sectors,
+            Disk::Nvme(disk) => disk.disk.sectors,
+        }
+    }
+
+    /// Returns the size of the disk in bytes.
+    pub fn size(&self) -> u64 {
+        self.sectors() * 512
+    }
+
+    /// Returns the model name of the disk.
+    pub fn model(&self) -> Option<&str> {
+        match self {
+            Disk::Scsi(disk) => disk.disk.model.as_deref(),
+            Disk::Nvme(disk) => disk.disk.model.as_deref(),
+        }
+    }
+
+    /// Returns the vendor name of the disk.
+    pub fn vendor(&self) -> Option<&str> {
+        match self {
+            Disk::Scsi(disk) => disk.disk.vendor.as_deref(),
+            Disk::Nvme(disk) => disk.disk.vendor.as_deref(),
         }
     }
 }
@@ -170,9 +226,9 @@ mod tests {
         let devices = BlockDevice::discover().unwrap();
         for device in &devices {
             if let BlockDevice::Disk(disk) = device {
-                println!("{}:", disk.name());
+                println!("{}: {disk}", disk.name());
                 for partition in disk.partitions() {
-                    println!("├─{}", partition.name);
+                    println!("├─{} {partition}", partition.name);
                 }
             }
         }

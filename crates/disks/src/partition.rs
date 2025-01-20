@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::{sysfs::sysfs_read, DEVFS_DIR, SYSFS_DIR};
@@ -24,6 +25,17 @@ pub struct Partition {
     pub node: PathBuf,
     /// Path to the partition device in /dev
     pub device: PathBuf,
+}
+
+impl fmt::Display for Partition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{name} {size:.2} GiB",
+            name = self.name,
+            size = self.size as f64 * 512.0 / (1024.0 * 1024.0 * 1024.0)
+        )
+    }
 }
 
 impl Partition {
