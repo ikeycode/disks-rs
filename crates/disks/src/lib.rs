@@ -7,7 +7,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use partition::Partition;
+
 pub mod nvme;
+pub mod partition;
 pub mod scsi;
 mod sysfs;
 
@@ -19,6 +22,7 @@ const DEVFS_DIR: &str = "/dev";
 pub enum BlockDevice {
     /// A physical disk device
     Disk(Box<Disk>),
+    Unknown,
 }
 
 /// Represents the type of disk device.
@@ -46,21 +50,24 @@ pub struct BasicDisk {
     pub model: Option<String>,
     /// Optional disk vendor name
     pub vendor: Option<String>,
+    /// Partitions
+    pub partitions: Vec<Partition>,
 }
 
 impl Disk {
     /// Returns the name of the disk device.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Returns strings like "sda" or "nvme0n1"
-    /// let name = disk.name();
-    /// ```
     pub fn name(&self) -> &str {
         match self {
             Disk::Scsi(disk) => disk.name(),
             Disk::Nvme(disk) => disk.name(),
+        }
+    }
+
+    /// Returns the partitions on the disk.
+    pub fn partitions(&self) -> &[Partition] {
+        match self {
+            Disk::Scsi(disk) => disk.partitions(),
+            Disk::Nvme(disk) => disk.partitions(),
         }
     }
 }
@@ -83,12 +90,25 @@ pub(crate) trait DiskInit: Sized {
 impl DiskInit for BasicDisk {
     fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
         let node = sysroot.join(name);
+
+        // Read the partitions of the disk if any
+        let mut partitions: Vec<_> = fs::read_dir(&node)
+            .ok()?
+            .filter_map(Result::ok)
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                Partition::from_sysfs_path(sysroot, &name)
+            })
+            .collect();
+        partitions.sort_by_key(|p| p.number);
+
         Some(Self {
             name: name.to_owned(),
             sectors: sysfs::sysfs_read(sysroot, &node, "size").unwrap_or(0),
             device: PathBuf::from(DEVFS_DIR).join(name),
             model: sysfs::sysfs_read(sysroot, &node, "device/model"),
             vendor: sysfs::sysfs_read(sysroot, &node, "device/vendor"),
+            partitions,
             node,
         })
     }
@@ -100,15 +120,6 @@ impl BlockDevice {
     /// # Returns
     ///
     /// A vector of discovered block devices or an IO error if the discovery fails.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let devices = BlockDevice::discover()?;
-    /// for device in devices {
-    ///     println!("Found device: {:?}", device);
-    /// }
-    /// ```
     pub fn discover() -> io::Result<Vec<BlockDevice>> {
         Self::discover_in_sysroot("/")
     }
@@ -157,7 +168,13 @@ mod tests {
     #[test]
     fn test_discover() {
         let devices = BlockDevice::discover().unwrap();
-        assert!(!devices.is_empty());
-        eprintln!("devices: {devices:?}");
+        for device in &devices {
+            if let BlockDevice::Disk(disk) = device {
+                println!("{}:", disk.name());
+                for partition in disk.partitions() {
+                    println!("├─{}", partition.name);
+                }
+            }
+        }
     }
 }

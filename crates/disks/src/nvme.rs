@@ -7,9 +7,9 @@
 //! This module provides functionality to enumerate and handle NVMe (Non-Volatile Memory Express)
 //! storage devices by parsing sysfs paths and device names.
 
-use std::{path::Path, sync::OnceLock};
+use crate::{partition::Partition, BasicDisk, DiskInit};
 use regex::Regex;
-use crate::{BasicDisk, DiskInit};
+use std::{path::Path, sync::OnceLock};
 
 /// Regex pattern to match valid NVMe device names (e.g. nvme0n1)
 static NVME_PATTERN: OnceLock<Regex> = OnceLock::new();
@@ -51,5 +51,10 @@ impl Disk {
     /// * A string slice containing the disk name
     pub fn name(&self) -> &str {
         &self.disk.name
+    }
+
+    /// Returns the partitions on the disk
+    pub fn partitions(&self) -> &[Partition] {
+        &self.disk.partitions
     }
 }

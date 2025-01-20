@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use crate::{BasicDisk, DiskInit};
+use crate::{partition::Partition, BasicDisk, DiskInit};
 
 /// Represents a SCSI disk device.
 ///
@@ -52,5 +52,10 @@ impl Disk {
     /// The device name (e.g. "sda", "sdb")
     pub fn name(&self) -> &str {
         &self.disk.name
+    }
+
+    /// Returns the partitions on the disk.
+    pub fn partitions(&self) -> &[Partition] {
+        &self.disk.partitions
     }
 }
