@@ -4,47 +4,52 @@
 
 //! NVME device enumeration and handling
 //!
-//! This module provides functionality to enumerate and handle NVME devices.
+//! This module provides functionality to enumerate and handle NVMe (Non-Volatile Memory Express)
+//! storage devices by parsing sysfs paths and device names.
 
-use std::{fs, io};
-
+use std::{path::Path, sync::OnceLock};
 use regex::Regex;
+use crate::{BasicDisk, DiskInit};
 
-use crate::{Disk, SYSFS_DIR};
+/// Regex pattern to match valid NVMe device names (e.g. nvme0n1)
+static NVME_PATTERN: OnceLock<Regex> = OnceLock::new();
 
-pub fn enumerate() -> io::Result<Vec<Disk>> {
-    // Filter for NVME block devices in format nvmeXnY where X and Y are digits
-    // Exclude partitions (nvmeXnYpZ) and character devices
-    let nvme_pattern = Regex::new(r"^nvme\d+n\d+$").unwrap();
-
-    let items = fs::read_dir(SYSFS_DIR)?
-        .filter_map(Result::ok)
-        .filter_map(|e| Some(e.file_name().to_str()?.to_owned()))
-        .filter(|name| nvme_pattern.is_match(name))
-        .map(Disk::from_sysfs_block_name)
-        .collect();
-    Ok(items)
+/// Represents an NVMe disk device
+#[derive(Debug)]
+pub struct Disk {
+    /// The underlying basic disk implementation
+    disk: BasicDisk,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_enumerate() {
-        let devices = enumerate().expect("failed to collect nvme disks");
-        eprintln!("nvme devices: {devices:?}");
-        for device in devices.iter() {
-            let mut size = device.size_in_bytes() as f64;
-            size /= 1024.0 * 1024.0 * 1024.0;
-            // Cheeky emulation of `fdisk -l` output
-            eprintln!(
-                "Disk /dev/{}: {:.2} GiB, {} bytes, {} sectors",
-                device.name,
-                size,
-                device.size_in_bytes(),
-                device.sectors
-            );
+impl DiskInit for Disk {
+    /// Creates a new NVMe disk from a sysfs path and device name
+    ///
+    /// # Arguments
+    /// * `sysroot` - The sysfs root path
+    /// * `name` - The device name to check
+    ///
+    /// # Returns
+    /// * `Some(Disk)` if the device name matches NVMe pattern
+    /// * `None` if name doesn't match or basic disk creation fails
+    fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
+        let regex = NVME_PATTERN
+            .get_or_init(|| Regex::new(r"^nvme\d+n\d+$").expect("Failed to initialise known-working regex"));
+        if regex.is_match(name) {
+            Some(Self {
+                disk: BasicDisk::from_sysfs_path(sysroot, name)?,
+            })
+        } else {
+            None
         }
+    }
+}
+
+impl Disk {
+    /// Returns the name of the NVMe disk (e.g. "nvme0n1")
+    ///
+    /// # Returns
+    /// * A string slice containing the disk name
+    pub fn name(&self) -> &str {
+        &self.disk.name
     }
 }

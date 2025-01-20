@@ -2,33 +2,55 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! SCSI device enumeration and handling
+//! SCSI device enumeration and handling.
 //!
-//! OK. Not quite true. Per modern conventions, all libata devices are also considered SCSI devices.
-//! This means all `/dev/sd*` devices.
+//! In modern Linux systems, all libata devices are exposed as SCSI devices through
+//! the SCSI subsystem. This module handles enumeration and management of these devices,
+//! which appear as `/dev/sd*` block devices.
 
-use std::{fs, io};
+use std::path::Path;
 
-use crate::{Disk, SYSFS_DIR};
+use crate::{BasicDisk, DiskInit};
 
-pub fn enumerate() -> io::Result<Vec<Disk>> {
-    // Filtered list of SCSI devices whose paths begin with "sd" but not ending with a digit
-    let items = fs::read_dir(SYSFS_DIR)?
-        .filter_map(Result::ok)
-        .filter_map(|e| Some(e.file_name().to_str()?.to_owned()))
-        .filter(|e| e.starts_with("sd") && e[2..].chars().all(char::is_alphabetic))
-        .map(Disk::from_sysfs_block_name)
-        .collect();
-    Ok(items)
+/// Represents a SCSI disk device.
+///
+/// This struct wraps a BasicDisk to provide SCSI-specific functionality.
+#[derive(Debug)]
+pub struct Disk {
+    disk: BasicDisk,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl DiskInit for Disk {
+    /// Creates a new Disk instance from a sysfs path if the device name matches SCSI naming pattern.
+    ///
+    /// # Arguments
+    ///
+    /// * `sysroot` - The root path of the sysfs filesystem
+    /// * `name` - The device name to check (e.g. "sda", "sdb")
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Disk)` if the name matches SCSI pattern (starts with "sd" followed by letters)
+    /// * `None` if the name doesn't match or the device can't be initialized
+    fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
+        let matching = name.starts_with("sd") && name[2..].chars().all(char::is_alphabetic);
+        if matching {
+            Some(Self {
+                disk: BasicDisk::from_sysfs_path(sysroot, name)?,
+            })
+        } else {
+            None
+        }
+    }
+}
 
-    #[test]
-    fn test_enumerate() {
-        let devices = enumerate().expect("Failed to enumerate SCSI devices");
-        eprintln!("scsi devices: {devices:?}");
+impl Disk {
+    /// Returns the name of the disk device.
+    ///
+    /// # Returns
+    ///
+    /// The device name (e.g. "sda", "sdb")
+    pub fn name(&self) -> &str {
+        &self.disk.name
     }
 }
