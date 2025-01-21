@@ -117,7 +117,7 @@ impl BasicDisk {
 }
 
 /// Trait for initializing different types of disk devices from sysfs.
-pub(crate) trait DiskInit: Sized {
+pub trait DiskInit: Sized {
     /// Creates a new disk instance by reading information from the specified sysfs path.
     ///
     /// # Arguments
