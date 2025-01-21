@@ -5,5 +5,9 @@ edition = "2021"
 description = "A library for working directly with partitions"
 
 [dependencies]
+disks = { path = "../disks" }
+thiserror.workspace = true
+log.workspace = true
+gpt.workspace = true
 nix.workspace = true
-linux-raw-sys = { workspace = true, features = ["loop_device"] }
+linux-raw-sys = { workspace = true, features = ["loop_device", "ioctl"] }
