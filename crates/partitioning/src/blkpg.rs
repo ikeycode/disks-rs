@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use disks::{BasicDisk, DiskInit};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use std::{
     fs::File,
     io,
@@ -63,8 +63,8 @@ pub(crate) fn add_partition<F>(fd: F, partition_number: i32, start: i64, length:
 where
     F: AsRawFd,
 {
-    info!(
-        "➕ Adding partition {} (start: {}, length: {})",
+    debug!(
+        "Initiating partition addition - Number: {}, Start: {}, Length: {}",
         partition_number, start, length
     );
     let mut part = BlkpgPartition {
@@ -85,10 +85,10 @@ where
     let res = unsafe { libc::ioctl(fd.as_raw_fd(), BLKPG as _, &mut ioctl) };
     if res < 0 {
         let err = io::Error::last_os_error();
-        error!("❌ Failed to add partition: {}", err);
+        error!("Partition creation failed: {}", err);
         return Err(err);
     }
-    info!("✅ Successfully added partition {}", partition_number);
+    info!("Successfully created partition {}", partition_number);
     Ok(())
 }
 
@@ -104,7 +104,7 @@ pub(crate) fn delete_partition<F>(fd: F, partition_number: i32) -> io::Result<()
 where
     F: AsRawFd,
 {
-    warn!("🗑️ Attempting to delete partition {}", partition_number);
+    info!("Initiating deletion of partition {}", partition_number);
     let mut part = BlkpgPartition {
         start: 0,
         length: 0,
@@ -123,10 +123,10 @@ where
     let res = unsafe { libc::ioctl(fd.as_raw_fd(), BLKPG as _, &mut ioctl) };
     if res < 0 {
         let err = io::Error::last_os_error();
-        error!("❌ Failed to delete partition {}: {}", partition_number, err);
+        error!("Failed to delete partition {}: {}", partition_number, err);
         return Err(err);
     }
-    info!("✅ Successfully deleted partition {}", partition_number);
+    info!("Successfully removed partition {}", partition_number);
     Ok(())
 }
 
@@ -138,21 +138,17 @@ where
 /// # Returns
 /// `Result<(), Error>` indicating success or partition operation failure
 pub fn sync_gpt_partitions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
-    info!("🔄 Syncing GPT partitions for {:?}", path.as_ref());
+    info!("Initiating GPT partition synchronization for {:?}", path.as_ref());
     let file = File::open(&path)?;
 
     // Read GPT table
-    debug!("📖 Reading GPT table...");
+    debug!("Reading GPT partition table");
     let gpt = gpt::GptConfig::new().writable(false).open(&path)?;
     let partitions = gpt.partitions();
     let block_size = 512;
-    info!(
-        "📊 Found {} partitions with block size {}",
-        partitions.len(),
-        block_size
-    );
+    info!("Located {} partitions (block size: {})", partitions.len(), block_size);
 
-    warn!("🗑️  Deleting existing partitions...");
+    debug!("Beginning partition cleanup process");
 
     // Find the disk for enumeration purposes
     let base_name = path
@@ -169,7 +165,7 @@ pub fn sync_gpt_partitions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
     }
 
     // Add partitions from GPT
-    info!("➕ Adding new partitions from GPT...");
+    debug!("Beginning partition creation from GPT table");
     for (i, partition) in partitions.iter() {
         add_partition(
             file.as_fd(),
@@ -179,6 +175,6 @@ pub fn sync_gpt_partitions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
         )?;
     }
 
-    info!("✨ GPT partition sync completed successfully");
+    info!("GPT partition synchronization completed successfully");
     Ok(())
 }

@@ -8,7 +8,7 @@ use std::{
 };
 
 use linux_raw_sys::loop_device::{LOOP_CLR_FD, LOOP_CTL_GET_FREE, LOOP_SET_FD, LOOP_SET_STATUS64};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nix::libc;
 
 /// Represents a loop device that can be used to mount files as block devices
@@ -28,21 +28,21 @@ impl LoopDevice {
     pub fn create() -> io::Result<Self> {
         use std::fs::OpenOptions;
 
-        debug!("🔄 Opening loop control device");
+        debug!("Opening loop control device");
         let ctrl = OpenOptions::new().read(true).write(true).open("/dev/loop-control")?;
 
         // Get next free loop device number
         let devno = unsafe { libc::ioctl(ctrl.as_raw_fd(), LOOP_CTL_GET_FREE as _) };
         if devno < 0 {
-            error!("❌ Failed to get free loop device number");
+            error!("Failed to acquire free loop device number");
             return Err(io::Error::last_os_error());
         }
 
         let path = format!("/dev/loop{}", devno);
-        info!("🔧 Creating new loop device at {}", path);
+        debug!("Creating new loop device at {}", path);
         let fd = OpenOptions::new().read(true).write(true).open(&path)?.into();
 
-        info!("✅ Successfully created loop device {}", path);
+        info!("Successfully initialized loop device {}", path);
         Ok(LoopDevice { fd, path })
     }
 
@@ -55,7 +55,7 @@ impl LoopDevice {
     /// # Returns
     /// `io::Result<()>` indicating success or failure
     pub fn attach(&self, backing_file: &str) -> io::Result<()> {
-        debug!("📎 Attaching backing file {} to {}", backing_file, self.path);
+        debug!("Attempting to attach backing file {} to {}", backing_file, self.path);
         let f = fs::OpenOptions::new().read(true).write(true).open(backing_file)?;
 
         let file_fd = f.as_raw_fd();
@@ -63,7 +63,7 @@ impl LoopDevice {
         let res = unsafe { libc::ioctl(our_fd, LOOP_SET_FD as _, file_fd) };
 
         if res < 0 {
-            error!("❌ Failed to attach backing file {}", backing_file);
+            error!("Failed to attach backing file {} - OS error", backing_file);
             return Err(io::Error::last_os_error());
         }
 
@@ -71,11 +71,11 @@ impl LoopDevice {
         let info: linux_raw_sys::loop_device::loop_info64 = unsafe { std::mem::zeroed() };
         let res = unsafe { libc::ioctl(our_fd, LOOP_SET_STATUS64 as _, &info) };
         if res < 0 {
-            warn!("⚠️ Failed to update loop device status");
+            error!("Failed to update loop device status - device may be in inconsistent state");
             return Err(io::Error::last_os_error());
         }
 
-        info!("✅ Successfully attached backing file {}", backing_file);
+        info!("Successfully attached backing file {} to loop device", backing_file);
         Ok(())
     }
 
@@ -84,14 +84,14 @@ impl LoopDevice {
     /// # Returns
     /// `io::Result<()>` indicating success or failure
     pub fn detach(&self) -> io::Result<()> {
-        debug!("🔓 Detaching backing file from {}", self.path);
+        debug!("Initiating detachment of backing file from {}", self.path);
         let res = unsafe { libc::ioctl(self.fd.as_raw_fd(), LOOP_CLR_FD as _, 0) };
         if res < 0 {
-            error!("❌ Failed to detach backing file from {}", self.path);
+            error!("Failed to detach backing file from {} - OS error", self.path);
             return Err(io::Error::last_os_error());
         }
 
-        info!("✅ Successfully detached backing file from {}", self.path);
+        info!("Successfully detached backing file from loop device {}", self.path);
         Ok(())
     }
 }

@@ -27,13 +27,13 @@ fn create_protective_mbr<P>(disk_size: u64, path: P) -> Result<(), Box<dyn std::
 where
     P: AsRef<Path>,
 {
-    debug!("🛡️  Creating protective MBR for disk of size {} bytes", disk_size);
+    info!("Creating protective MBR for disk of size {} bytes", disk_size);
     let mut gpt_device = fs::File::options().write(true).open(&path)?;
     let lb_size = (disk_size / 512) as u32;
     let lb_size = lb_size.saturating_sub(1); // subtract 1 for the MBR
     let mbr = ProtectiveMBR::with_lb_size(lb_size);
     mbr.overwrite_lba0(&mut gpt_device)?;
-    info!("✅ Successfully created protective MBR at {:?}", path.as_ref());
+    info!("Successfully created protective MBR at {:?}", path.as_ref());
     Ok(())
 }
 
@@ -54,7 +54,7 @@ fn create_default_partition_scheme<P>(path: P) -> Result<(), Box<dyn std::error:
 where
     P: AsRef<Path>,
 {
-    info!("💽 Creating default GPT partition scheme on {:?}", path.as_ref());
+    info!("Creating default GPT partition scheme on {:?}", path.as_ref());
 
     // Configure and create GPT disk
     let gpt_config = GptConfig::new()
@@ -63,24 +63,24 @@ where
 
     let mut gpt_disk = gpt_config.create(&path)?;
 
-    debug!("📝 Creating EFI System Partition (256MB)");
+    info!("Creating EFI System Partition (256MB)");
     gpt_disk.add_partition("", 256 * 1024 * 1024, partition_types::EFI, 0, None)?;
 
-    debug!("📝 Creating Boot Partition (2GB)");
+    info!("Creating Boot Partition (2GB)");
     gpt_disk.add_partition("", 2 * 1024 * 1024 * 1024, partition_types::FREEDESK_BOOT, 0, None)?;
 
-    debug!("📝 Creating Swap Partition (4GB)");
+    info!("Creating Swap Partition (4GB)");
     gpt_disk.add_partition("", 4 * 1024 * 1024 * 1024, partition_types::LINUX_SWAP, 0, None)?;
 
     // Use remaining space for root partition
     let sectors = gpt_disk.find_free_sectors();
-    debug!("📊 Available sectors: {sectors:?}");
+    debug!("Available sectors: {sectors:?}");
     let (_, length) = sectors.iter().find(|(_, l)| *l > 0).unwrap();
-    debug!("📝 Creating Root Partition ({}MB)", (length * 512) / (1024 * 1024));
+    info!("Creating Root Partition ({}MB)", (length * 512) / (1024 * 1024));
     gpt_disk.add_partition("", *length * 512, partition_types::LINUX_FS, 0, None)?;
     let _ = gpt_disk.write()?;
 
-    info!("✅ Successfully created partition scheme");
+    info!("Successfully created partition scheme");
     Ok(())
 }
 
@@ -90,31 +90,31 @@ where
 /// - Partitioning with GPT
 /// - Enumerating block devices
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    pretty_env_logger::formatted_builder()
-        .filter_level(log::LevelFilter::Trace)
+    pretty_env_logger::formatted_timed_builder()
+        .filter_level(log::LevelFilter::Info)
         .init();
-    info!("🚀 Starting disk partitioning demo");
+    info!("Starting disk partitioning demo");
 
     // Create 35GB sparse image file and attach to loopback device
     let image_size = 35 * 1024 * 1024 * 1024;
-    info!("📁 Creating {}GB sparse image file", image_size / (1024 * 1024 * 1024));
+    info!("Creating {}GB sparse image file", image_size / (1024 * 1024 * 1024));
     sparsefile::create("hello.world", image_size)?;
 
-    debug!("🔄 Setting up loopback device");
+    info!("Setting up loopback device");
     let device = loopback::LoopDevice::create()?;
     device.attach("hello.world")?;
-    info!("💫 Loop device created at: {}", &device.path);
+    info!("Loop device created at: {}", &device.path);
 
     // Initialize disk with protective MBR and partition scheme
     create_protective_mbr(image_size, "hello.world")?;
     create_default_partition_scheme("hello.world")?;
 
     // Notify kernel of partition table changes
-    debug!("🔄 Syncing partition table changes");
+    debug!("Syncing partition table changes");
     blkpg::sync_gpt_partitions(&device.path)?;
 
     // Get list of all loopback devices
-    info!("🔍 Discovering block devices");
+    debug!("Discovering block devices");
     let loop_devices = BlockDevice::discover()?
         .into_iter()
         .filter_map(|device| {
@@ -127,12 +127,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>();
 
     // Display information about discovered devices
-    info!("📋 Device information:");
+    info!("Device information:");
     for loop_device in loop_devices {
         if let Some(file) = loop_device.file_path() {
             if let Some(disk) = loop_device.disk() {
                 info!(
-                    "💾 Loopback device: {} (backing file: {})",
+                    "Loopback device: {} (backing file: {})",
                     loop_device.name(),
                     file.display()
                 );
@@ -145,10 +145,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Clean up resources
-    debug!("🧹 Cleaning up resources");
+    info!("Cleaning up resources");
     device.detach()?;
     //fs::remove_file("hello.world")?;
 
-    info!("✨ Demo completed successfully");
+    info!("Demo completed successfully");
     Ok(())
 }

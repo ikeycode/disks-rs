@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-use log::info;
+use log::{debug, info};
 use std::{fs, io, path::Path};
 
 /// Creates a sparse file at the specified path with the given size.
@@ -17,7 +17,7 @@ pub fn create<P>(path: P, size: u64) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    info!("🗂️  Creating sparse file at {:?}", path.as_ref());
+    debug!("Creating sparse file at {:?}", path.as_ref());
 
     let file = fs::OpenOptions::new()
         .write(true)
@@ -25,9 +25,13 @@ where
         .truncate(true)
         .open(&path)?;
 
-    info!("📝 Setting file size to {} bytes", size);
+    debug!("Setting file size to {} bytes", size);
     file.set_len(size)?;
 
-    info!("✅ Successfully created sparse file");
+    info!(
+        "Successfully created sparse file of {} bytes at {:?}",
+        size,
+        path.as_ref()
+    );
     Ok(())
 }
