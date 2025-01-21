@@ -8,8 +8,10 @@ use std::{fs, path::Path};
 use disks::BlockDevice;
 use partitioning::{
     gpt::{disk::LogicalBlockSize, mbr::ProtectiveMBR, partition_types, GptConfig},
-    loopback, sparsefile, sync_gpt_partitions,
+    loopback, sparsefile,
 };
+
+use partitioning::blkpg;
 
 /// Creates a protective MBR on the specified disk
 ///
@@ -109,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Notify kernel of partition table changes
     debug!("🔄 Syncing partition table changes");
-    sync_gpt_partitions(&device.path)?;
+    blkpg::sync_gpt_partitions(&device.path)?;
 
     // Get list of all loopback devices
     info!("🔍 Discovering block devices");
