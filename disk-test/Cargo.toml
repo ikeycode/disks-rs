@@ -1,0 +1,9 @@
+[package]
+name = "disk-test"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+disks = { path = "../crates/disks" }
+partitioning = { path = "../crates/partitioning" }
