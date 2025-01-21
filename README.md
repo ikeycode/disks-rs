@@ -4,8 +4,40 @@ This project began life in the [blsforme](https://github.com/serpent-os/blsforme
 However as time went on it became clear we needed to extend the capabilities beyond simple topology scanning
 and superblocks to support the installer and other use cases.
 
-This is a WIP project to extend support for more disk configurations whilst providing backend support to the
-blsforme project and installers like lichen.
+Importantly due to using blsforme in moss, and requiring static linking to avoid soname breakage on updates,
+we were unable to leverage `libblkid` due to licensing incompatibilities.
+
+## Goals
+
+Provide safe and sane APIs for dealing with filesystems, block devices and partitioning in Rust. The intent
+is to provide a high level API that can be used to build tools like installers, partitioners, and other disk
+management tools.
+
+With support, we will also provide the foundations for a Rust implementation of `libblkid`, while also providing
+an alternative to `libparted`.
+
+## Support Us
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J511WM9N)
+
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fikeycode)](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fikeycode)
+
+## Crates
+
+- `disks` - A simplistic enumeration API built atop `sysfs` for discovering block devices and partitions.
+- `superblock` - Pure Rust superblock parsing for various filesystems. Version-specific oddities and more filesystems
+    will be added over time.
+
+    Currently we support:
+
+    - `luks2` - LUKS2 superblock parsing.
+    - `ext4` - Ext4 superblock parsing.
+    - `f2fs` - F2FS superblock parsing.
+    - `btrfs` - Btrfs superblock parsing.
+    - `xfs` - XFS superblock parsing.
+
+- `partitioning` - A partitioning API for manipulating partition tables on block devices. This will be built atop
+    `disks` and `superblock` to provide a high level API for partitioning. Currently focused on `gpt`.
 
 ## License
 
