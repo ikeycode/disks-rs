@@ -6,4 +6,6 @@ publish = false
 
 [dependencies]
 disks = { path = "../crates/disks" }
+log.workspace = true
 partitioning = { path = "../crates/partitioning" }
+pretty_env_logger = "0.5.0"
