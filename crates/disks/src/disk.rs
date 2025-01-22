@@ -27,7 +27,7 @@ pub enum Disk {
 impl Deref for Disk {
     type Target = BasicDisk;
 
-    // Let scsi and nvme disks deref to BasicDisk
+    // Let disks deref to BasicDisk to eliminate code duplication
     fn deref(&self) -> &Self::Target {
         match self {
             Disk::Mmc(disk) => disk,
