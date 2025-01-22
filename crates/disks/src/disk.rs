@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{mmc, nvme, partition::Partition, scsi, sysfs, DEVFS_DIR};
+use crate::{mmc, nvme, partition::Partition, scsi, sysfs, virt, DEVFS_DIR};
 
 /// Represents the type of disk device.
 #[derive(Debug)]
@@ -20,6 +20,8 @@ pub enum Disk {
     Mmc(mmc::Disk),
     /// NVMe disk device (e.g. nvme0n1)
     Nvme(nvme::Disk),
+    /// Virtual disk device
+    Virtual(virt::Disk),
 }
 
 impl Deref for Disk {
@@ -31,6 +33,7 @@ impl Deref for Disk {
             Disk::Mmc(disk) => disk,
             Disk::Nvme(disk) => disk,
             Disk::Scsi(disk) => disk,
+            Disk::Virtual(disk) => disk,
         }
     }
 }

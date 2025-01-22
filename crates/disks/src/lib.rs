@@ -15,6 +15,7 @@ pub mod nvme;
 pub mod partition;
 pub mod scsi;
 mod sysfs;
+pub mod virt;
 
 const SYSFS_DIR: &str = "/sys/class/block";
 const DEVFS_DIR: &str = "/dev";
@@ -83,6 +84,8 @@ impl BlockDevice {
                 BlockDevice::Disk(Box::new(Disk::Nvme(disk)))
             } else if let Some(disk) = mmc::Disk::from_sysfs_path(&sysfs_dir, &entry) {
                 BlockDevice::Disk(Box::new(Disk::Mmc(disk)))
+            } else if let Some(device) = virt::Disk::from_sysfs_path(&sysfs_dir, &entry) {
+                BlockDevice::Disk(Box::new(Disk::Virtual(device)))
             } else if let Some(device) = loopback::Device::from_sysfs_path(&sysfs_dir, &entry) {
                 BlockDevice::Loopback(Box::new(device))
             } else {
