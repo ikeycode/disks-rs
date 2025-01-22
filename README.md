@@ -20,7 +20,7 @@ an alternative to `libparted`.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J511WM9N)
 
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fikeycode)](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fikeycode)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor)](https://github.com/sponsors/ikeycode)
 
 ## Crates
 
