@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{mmc, nvme, partition::Partition, scsi, sysfs, virt, DEVFS_DIR};
+use crate::{mmc, mock, nvme, partition::Partition, scsi, sysfs, virt, DEVFS_DIR};
 
 /// Represents the type of disk device.
 #[derive(Debug)]
@@ -22,6 +22,8 @@ pub enum Disk {
     Nvme(nvme::Disk),
     /// Virtual disk device
     Virtual(virt::Disk),
+    /// Mock disk for testing
+    Mock(mock::MockDisk),
 }
 
 impl Deref for Disk {
@@ -34,26 +36,27 @@ impl Deref for Disk {
             Disk::Nvme(disk) => disk,
             Disk::Scsi(disk) => disk,
             Disk::Virtual(disk) => disk,
+            Disk::Mock(disk) => disk,
         }
     }
 }
 
 /// A basic disk representation containing common attributes shared by all disk types.
 /// This serves as the base structure that specific disk implementations build upon.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BasicDisk {
     /// Device name (e.g. sda, nvme0n1)
-    name: String,
+    pub(crate) name: String,
     /// Total number of sectors on the disk
-    sectors: u64,
+    pub(crate) sectors: u64,
     /// Path to the device in /dev
-    device: PathBuf,
+    pub(crate) device: PathBuf,
     /// Optional disk model name
-    model: Option<String>,
+    pub(crate) model: Option<String>,
     /// Optional disk vendor name
-    vendor: Option<String>,
+    pub(crate) vendor: Option<String>,
     /// Partitions
-    partitions: Vec<Partition>,
+    pub(crate) partitions: Vec<Partition>,
 }
 
 impl fmt::Display for Disk {
@@ -91,6 +94,11 @@ impl BasicDisk {
     /// Returns the partitions on the disk.
     pub fn partitions(&self) -> &[Partition] {
         &self.partitions
+    }
+
+    /// Helper for MockDisk to modify partitions
+    pub(crate) fn partitions_mut(&mut self) -> &mut Vec<Partition> {
+        &mut self.partitions
     }
 
     /// Returns the path to the disk device in dev.

@@ -9,7 +9,7 @@ use crate::{sysfs, DEVFS_DIR, SYSFS_DIR};
 
 /// Represents a partition on a disk device
 /// - Size in sectors
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Partition {
     /// Name of the partition
     pub name: String,

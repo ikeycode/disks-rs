@@ -11,6 +11,7 @@ use std::{
 pub use disk::*;
 pub mod loopback;
 pub mod mmc;
+pub mod mock;
 pub mod nvme;
 pub mod partition;
 pub mod scsi;
