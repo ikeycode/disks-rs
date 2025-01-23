@@ -9,3 +9,4 @@ pub mod sparsefile;
 pub use gpt;
 
 pub mod planner;
+pub mod strategy;

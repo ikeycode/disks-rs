@@ -27,6 +27,8 @@ pub enum PlanError {
     RegionOverlap { start: u64, end: u64 },
     #[error("Region {start}..{end} exceeds disk bounds")]
     RegionOutOfBounds { start: u64, end: u64 },
+    #[error("No free regions available")]
+    NoFreeRegions,
 }
 
 /// A planned modification to the disk's partition layout
@@ -66,8 +68,11 @@ pub struct Planner {
 /// ```
 #[derive(Debug, Clone)]
 pub struct Region {
-    start: u64,
-    end: u64,
+    /// The absolute start position of this region in bytes
+    pub start: u64,
+
+    /// The absolute end position of this region in bytes
+    pub end: u64,
 }
 
 /// Default alignment for partition boundaries (1MiB)
@@ -352,6 +357,13 @@ impl Planner {
     /// Get the original disk state
     pub fn original_disk(&self) -> &Disk {
         &self.disk
+    }
+    /// Plan to initialize a clean partition layout
+    pub fn plan_initialize_disk(&mut self) -> Result<(), PlanError> {
+        debug!("Planning to create new GPT partition table");
+        self.changes.clear(); // Clear any existing changes
+        self.original_regions.clear(); // Clear original partitions
+        Ok(())
     }
 }
 #[cfg(test)]
