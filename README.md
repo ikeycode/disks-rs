@@ -16,6 +16,10 @@ management tools.
 With support, we will also provide the foundations for a Rust implementation of `libblkid`, while also providing
 an alternative to `libparted`.
 
+Per [issue 3](https://github.com/serpent-os/disks-rs/issues/3) we do eventually plan to extend the superblock support
+to have in-tree capabilities for writing filesystems, but this is a long term goal. TLDR generation of complete filesystem
+images / rootfs without `euid = 0` requirements. If you want to make this happen faster, then read the next section. 😉
+
 ## Support Us ❤️
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J511WM9N)
