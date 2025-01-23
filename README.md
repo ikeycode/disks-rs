@@ -1,4 +1,4 @@
-# disks-rs
+# disks-rs 💽
 
 This project began life in the [blsforme](https://github.com/serpent-os/blsforme) project for Serpent OS.
 However as time went on it became clear we needed to extend the capabilities beyond simple topology scanning
@@ -7,7 +7,7 @@ and superblocks to support the installer and other use cases.
 Importantly due to using blsforme in moss, and requiring static linking to avoid soname breakage on updates,
 we were unable to leverage `libblkid` due to licensing incompatibilities.
 
-## Goals
+## Goals 🎯
 
 Provide safe and sane APIs for dealing with filesystems, block devices and partitioning in Rust. The intent
 is to provide a high level API that can be used to build tools like installers, partitioners, and other disk
@@ -16,13 +16,13 @@ management tools.
 With support, we will also provide the foundations for a Rust implementation of `libblkid`, while also providing
 an alternative to `libparted`.
 
-## Support Us
+## Support Us ❤️
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J511WM9N)
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/ikeycode?style=for-the-badge&logo=github&label=Sponsor)](https://github.com/sponsors/ikeycode)
 
-## Crates
+## Crates 📦
 
 - `disks` - A simplistic enumeration API built atop `sysfs` for discovering block devices and partitions.
 - `superblock` - Pure Rust superblock parsing for various filesystems. Version-specific oddities and more filesystems
