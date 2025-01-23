@@ -39,6 +39,12 @@ an alternative to `libparted`.
 - `partitioning` - A partitioning API for manipulating partition tables on block devices. This will be built atop
     `disks` and `superblock` to provide a high level API for partitioning. Currently focused on `gpt`.
 
+    - The `loopback` module provides a way to create loopback devices and bind them for testing.
+    - Notifying the kernel of partition table changes is supported for GPT (BLKPG).
+    - The `planner` module is provided to assist in planning partitioning operations (undo support included)
+    - The `strategy` module builds on top of `planner` to facilitate computation of partition layouts including
+      disk wipe, dual boot scenarios, etc.
+
 ## License
 
 `disks-rs` is available under the terms of the [MPL-2.0](https://spdx.org/licenses/MPL-2.0.html)
