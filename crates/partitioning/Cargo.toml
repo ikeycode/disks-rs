@@ -11,3 +11,6 @@ log.workspace = true
 gpt.workspace = true
 nix.workspace = true
 linux-raw-sys = { workspace = true, features = ["loop_device", "ioctl"] }
+
+[dev-dependencies]
+test-log.workspace = true

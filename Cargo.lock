@@ -514,6 +514,7 @@ dependencies = [
  "linux-raw-sys",
  "log",
  "nix",
+ "test-log",
  "thiserror",
 ]
 
