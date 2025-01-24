@@ -8,7 +8,10 @@ use std::{fs, path::Path};
 use disks::BlockDevice;
 use partitioning::{
     gpt::{disk::LogicalBlockSize, mbr::ProtectiveMBR, partition_types, GptConfig},
-    loopback, sparsefile,
+    loopback,
+    planner::Planner,
+    sparsefile,
+    strategy::{AllocationStrategy, PartitionRequest, SizeRequirement, Strategy},
 };
 
 use partitioning::blkpg;
@@ -54,7 +57,8 @@ fn create_default_partition_scheme<P>(path: P) -> Result<(), Box<dyn std::error:
 where
     P: AsRef<Path>,
 {
-    info!("Creating default GPT partition scheme on {:?}", path.as_ref());
+    let path = path.as_ref();
+    info!("Creating default GPT partition scheme on {:?}", path);
 
     // Configure and create GPT disk
     let gpt_config = GptConfig::new()
@@ -62,22 +66,61 @@ where
         .logical_block_size(LogicalBlockSize::Lb512);
 
     let mut gpt_disk = gpt_config.create(&path)?;
+    gpt_disk.write_inplace()?;
 
-    info!("Creating EFI System Partition (256MB)");
-    gpt_disk.add_partition("", 256 * 1024 * 1024, partition_types::EFI, 0, None)?;
+    // Connect the planner.
+    let disk = disks::loopback::Device::from_device_path(path).unwrap();
+    let block = BlockDevice::loopback_device(disk);
+    let mut planner = Planner::new(block);
+    let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
-    info!("Creating Boot Partition (2GB)");
-    gpt_disk.add_partition("", 2 * 1024 * 1024 * 1024, partition_types::FREEDESK_BOOT, 0, None)?;
+    // efi
+    strategy.add_request(PartitionRequest {
+        size: SizeRequirement::Range {
+            min: 256 * 1024 * 1024,
+            max: 1 * 1024 * 1024 * 1024,
+        },
+        alignment: None,
+    });
+    // xbootldr
+    strategy.add_request(PartitionRequest {
+        size: SizeRequirement::Range {
+            min: 2 * 1024 * 1024 * 1024,
+            max: 4 * 1024 * 1024 * 1024,
+        },
+        alignment: None,
+    });
+    // swap
+    strategy.add_request(PartitionRequest {
+        size: SizeRequirement::Range {
+            min: 1 * 1024 * 1024 * 1024,
+            max: 4 * 1024 * 1024 * 1024,
+        },
+        alignment: None,
+    });
+    // root
+    strategy.add_request(PartitionRequest {
+        size: SizeRequirement::Range {
+            min: 30 * 1024 * 1024 * 1024,
+            max: 120 * 1024 * 1024 * 1024,
+        },
+        alignment: None,
+    });
+    // home
+    strategy.add_request(PartitionRequest {
+        size: SizeRequirement::AtLeast(50 * 1024 * 1024 * 1024),
+        alignment: None,
+    });
+    info!("Applying strategy: {}", strategy.describe());
+    strategy.apply(&mut planner)?;
+    info!("Computed: {}", planner.describe_changes());
 
-    info!("Creating Swap Partition (4GB)");
-    gpt_disk.add_partition("", 4 * 1024 * 1024 * 1024, partition_types::LINUX_SWAP, 0, None)?;
+    // TODO: Track the types in the API and use them here
+    for partition in planner.current_layout() {
+        info!("Adding partition: {:?}", &partition);
+        gpt_disk.add_partition("", partition.size(), partition_types::LINUX_FS, 0, None)?;
+    }
 
-    // Use remaining space for root partition
-    let sectors = gpt_disk.find_free_sectors();
-    debug!("Available sectors: {sectors:?}");
-    let (_, length) = sectors.iter().find(|(_, l)| *l > 0).unwrap();
-    info!("Creating Root Partition ({}MB)", (length * 512) / (1024 * 1024));
-    gpt_disk.add_partition("", *length * 512, partition_types::LINUX_FS, 0, None)?;
     let _ = gpt_disk.write()?;
 
     info!("Successfully created partition scheme");
@@ -91,12 +134,12 @@ where
 /// - Enumerating block devices
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::formatted_timed_builder()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Debug)
         .init();
     info!("Starting disk partitioning demo");
 
-    // Create 35GB sparse image file and attach to loopback device
-    let image_size = 35 * 1024 * 1024 * 1024;
+    // Create 100GB sparse image file and attach to loopback device
+    let image_size = 100 * 1024 * 1024 * 1024;
     info!("Creating {}GB sparse image file", image_size / (1024 * 1024 * 1024));
     sparsefile::create("hello.world", image_size)?;
 
@@ -106,8 +149,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Loop device created at: {}", &device.path);
 
     // Initialize disk with protective MBR and partition scheme
-    create_protective_mbr(image_size, "hello.world")?;
-    create_default_partition_scheme("hello.world")?;
+    create_protective_mbr(image_size, &device.path)?;
+    create_default_partition_scheme(&device.path)?;
 
     // Notify kernel of partition table changes
     debug!("Syncing partition table changes");
