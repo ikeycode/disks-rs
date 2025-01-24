@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use core::fmt;
+use std::fs;
 use std::{
-    fs,
     ops::Deref,
     path::{Path, PathBuf},
 };
@@ -146,6 +146,8 @@ impl DiskInit for BasicDisk {
     fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
         let node = sysroot.join(name);
 
+        log::debug!("Initializing disk at sysfs path: {:?}", node);
+
         // Read the partitions of the disk if any
         let mut partitions: Vec<_> = fs::read_dir(&node)
             .ok()?
@@ -157,12 +159,24 @@ impl DiskInit for BasicDisk {
             .collect();
         partitions.sort_by_key(|p| p.number);
 
+        let sectors = sysfs::read(&node, "size").unwrap_or(0);
+        log::debug!("Read {} sectors for disk {}", sectors, name);
+
+        let device = PathBuf::from(DEVFS_DIR).join(name);
+        log::debug!("Device path: {:?}", device);
+
+        let model = sysfs::read(&node, "device/model");
+        log::debug!("Model: {:?}", model);
+
+        let vendor = sysfs::read(&node, "device/vendor");
+        log::debug!("Vendor: {:?}", vendor);
+
         Some(Self {
             name: name.to_owned(),
-            sectors: sysfs::read(sysroot, &node, "size").unwrap_or(0),
-            device: PathBuf::from(DEVFS_DIR).join(name),
-            model: sysfs::read(sysroot, &node, "device/model"),
-            vendor: sysfs::read(sysroot, &node, "device/vendor"),
+            sectors,
+            device,
+            model,
+            vendor,
             partitions,
         })
     }

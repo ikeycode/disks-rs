@@ -9,6 +9,7 @@ use std::{
 };
 
 pub use disk::*;
+use partition::Partition;
 pub mod loopback;
 pub mod mmc;
 pub mod mock;
@@ -18,8 +19,8 @@ pub mod scsi;
 mod sysfs;
 pub mod virt;
 
-const SYSFS_DIR: &str = "/sys/class/block";
-const DEVFS_DIR: &str = "/dev";
+const SYSFS_DIR: &str = "sys/class/block";
+const DEVFS_DIR: &str = "dev";
 
 /// A block device on the system which can be either a physical disk or a partition.
 #[derive(Debug)]
@@ -37,6 +38,65 @@ impl BlockDevice {
     /// A vector of discovered block devices or an IO error if the discovery fails.
     pub fn discover() -> io::Result<Vec<BlockDevice>> {
         Self::discover_in_sysroot("/")
+    }
+
+    /// Returns the total number of sectors on the block device.
+    pub fn sectors(&self) -> u64 {
+        match self {
+            BlockDevice::Disk(disk) => disk.sectors(),
+            BlockDevice::Loopback(device) => device.disk().map_or(0, |d| d.sectors()),
+        }
+    }
+
+    /// Returns the total size of the block device in bytes.
+    pub fn size(&self) -> u64 {
+        self.sectors() * 512
+    }
+
+    /// Returns the partitions on the block device.
+    pub fn partitions(&self) -> &[Partition] {
+        match self {
+            BlockDevice::Disk(disk) => disk.partitions(),
+            BlockDevice::Loopback(device) => device.disk().map_or(&[], |d| d.partitions()),
+        }
+    }
+
+    /// Creates a mock block device with a specified number of sectors.
+    pub fn mock_device(disk: mock::MockDisk) -> Self {
+        BlockDevice::Disk(Box::new(Disk::Mock(disk)))
+    }
+
+    /// Creates a loopback block device from a file path.
+    pub fn loopback_device(device: loopback::Device) -> Self {
+        BlockDevice::Loopback(Box::new(device))
+    }
+
+    /// Creates a BlockDevice from a specific device path
+    ///
+    /// # Arguments
+    ///
+    /// * `device_path` - Path to the block device (e.g. "/dev/sda")
+    ///
+    /// # Returns
+    ///
+    /// The block device or an IO error if creation fails.
+    pub fn from_sysfs_path(sysfs_root: impl AsRef<Path>, name: impl AsRef<str>) -> io::Result<BlockDevice> {
+        let name = name.as_ref();
+        let sysfs_dir = sysfs_root.as_ref();
+
+        if let Some(disk) = scsi::Disk::from_sysfs_path(sysfs_dir, name) {
+            return Ok(BlockDevice::Disk(Box::new(Disk::Scsi(disk))));
+        } else if let Some(disk) = nvme::Disk::from_sysfs_path(sysfs_dir, name) {
+            return Ok(BlockDevice::Disk(Box::new(Disk::Nvme(disk))));
+        } else if let Some(disk) = mmc::Disk::from_sysfs_path(sysfs_dir, name) {
+            return Ok(BlockDevice::Disk(Box::new(Disk::Mmc(disk))));
+        } else if let Some(device) = virt::Disk::from_sysfs_path(sysfs_dir, name) {
+            return Ok(BlockDevice::Disk(Box::new(Disk::Virtual(device))));
+        } else if let Some(device) = loopback::Device::from_sysfs_path(sysfs_dir, name) {
+            return Ok(BlockDevice::Loopback(Box::new(device)));
+        }
+
+        Err(io::Error::new(io::ErrorKind::NotFound, "Device not found"))
     }
 
     /// Returns the name of the block device.
@@ -79,21 +139,9 @@ impl BlockDevice {
         // For all the discovered block devices, try to create a Disk instance
         // At this point we completely ignore partitions. They come later.
         for entry in entries {
-            let device = if let Some(disk) = scsi::Disk::from_sysfs_path(&sysfs_dir, &entry) {
-                BlockDevice::Disk(Box::new(Disk::Scsi(disk)))
-            } else if let Some(disk) = nvme::Disk::from_sysfs_path(&sysfs_dir, &entry) {
-                BlockDevice::Disk(Box::new(Disk::Nvme(disk)))
-            } else if let Some(disk) = mmc::Disk::from_sysfs_path(&sysfs_dir, &entry) {
-                BlockDevice::Disk(Box::new(Disk::Mmc(disk)))
-            } else if let Some(device) = virt::Disk::from_sysfs_path(&sysfs_dir, &entry) {
-                BlockDevice::Disk(Box::new(Disk::Virtual(device)))
-            } else if let Some(device) = loopback::Device::from_sysfs_path(&sysfs_dir, &entry) {
-                BlockDevice::Loopback(Box::new(device))
-            } else {
-                continue;
-            };
-
-            devices.push(device);
+            if let Ok(device) = BlockDevice::from_sysfs_path(&sysfs_dir, &entry) {
+                devices.push(device);
+            }
         }
 
         Ok(devices)

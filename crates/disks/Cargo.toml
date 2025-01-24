@@ -6,3 +6,4 @@ description = "A library for working with disks and partitions"
 
 [dependencies]
 regex = "1"
+log.workspace = true

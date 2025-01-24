@@ -10,8 +10,7 @@ use std::{fs, path::Path, str::FromStr};
 ///
 /// # Arguments
 ///
-/// * `sysroot` - Base path of the sysfs mount point
-/// * `node` - Path to specific sysfs node relative to sysroot
+/// * `node` - Fully qualified path to specific sysfs node
 /// * `key` - Name of the sysfs attribute to read
 ///
 /// # Returns
@@ -22,10 +21,9 @@ use std::{fs, path::Path, str::FromStr};
 /// # Type Parameters
 ///
 /// * `T` - Target type that implements FromStr for parsing the raw value
-pub(crate) fn read<T>(sysroot: &Path, node: &Path, key: &str) -> Option<T>
+pub(crate) fn read<T>(node: &Path, key: &str) -> Option<T>
 where
     T: FromStr,
 {
-    let path = sysroot.join(node).join(key);
-    fs::read_to_string(&path).ok()?.trim().parse().ok()
+    fs::read_to_string(node.join(key)).ok()?.trim().parse().ok()
 }
