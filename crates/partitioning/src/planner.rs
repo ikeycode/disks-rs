@@ -46,6 +46,10 @@ pub enum Change {
 
 /// A disk partitioning planner.
 pub struct Planner {
+    /// First usable LBA position on disk in bytes
+    usable_start: u64,
+    /// Last usable LBA position on disk in bytes
+    usable_end: u64,
     /// The original block device state that we're planning changes for
     device: BlockDevice,
     /// Stack of changes that can be undone
@@ -192,16 +196,36 @@ impl Planner {
     /// Creates a new partitioning planner for the given disk.
     pub fn new(device: BlockDevice) -> Self {
         debug!("Creating new partition planner for device of size {}", device.size());
+
         // Extract original regions from device
         let original_regions = device
             .partitions()
             .iter()
             .map(|p| Region::new(p.start, p.end))
             .collect();
+
         Self {
+            usable_start: 0,
+            usable_end: device.size(),
             device,
             changes: VecDeque::new(),
             original_regions,
+        }
+    }
+
+    /// Set the usable disk region offsets
+    pub fn with_start_offset(self, offset: u64) -> Self {
+        Self {
+            usable_start: offset,
+            ..self
+        }
+    }
+
+    /// Set the usable disk region offsets
+    pub fn with_end_offset(self, offset: u64) -> Self {
+        Self {
+            usable_end: offset,
+            ..self
         }
     }
 
@@ -211,11 +235,10 @@ impl Planner {
             return "No pending changes".to_string();
         }
 
-        let disk_size = self.device.size();
         let mut description = "Pending changes:\n".to_string();
 
         for (i, change) in self.changes.iter().enumerate() {
-            description.push_str(&format!("  {}: {}\n", i + 1, change.describe(disk_size)));
+            description.push_str(&format!("  {}: {}\n", i + 1, change.describe(self.usable_size())));
         }
 
         description
@@ -272,9 +295,9 @@ impl Planner {
         let aligned_end = align_down(end, PARTITION_ALIGNMENT);
         debug!("Aligned positions: {}..{}", aligned_start, aligned_end);
 
-        // Validate bounds
-        if aligned_end > self.device.size() {
-            warn!("Partition would exceed disk bounds");
+        // Validate bounds against usable disk region
+        if aligned_start < self.usable_start || aligned_end > self.usable_end {
+            warn!("Partition would be outside usable disk region");
             return Err(PlanError::RegionOutOfBounds {
                 start: aligned_start,
                 end: aligned_end,
@@ -321,8 +344,8 @@ impl Planner {
         if index >= self.original_regions.len() {
             warn!("Invalid partition index {}", index);
             return Err(PlanError::RegionOutOfBounds {
-                start: 0,
-                end: self.device.size(),
+                start: self.usable_start,
+                end: self.usable_size(),
             });
         }
 
@@ -362,6 +385,17 @@ impl Planner {
     pub fn original_device(&self) -> &BlockDevice {
         &self.device
     }
+
+    /// Get the size of the usable disk region in bytes
+    pub fn usable_size(&self) -> u64 {
+        self.usable_end - self.usable_start
+    }
+
+    /// Get the usable disk region offsets
+    pub fn offsets(&self) -> (u64, u64) {
+        (self.usable_start, self.usable_end)
+    }
+
     /// Plan to initialize a clean partition layout
     pub fn plan_initialize_disk(&mut self) -> Result<(), PlanError> {
         debug!("Planning to create new GPT partition table");

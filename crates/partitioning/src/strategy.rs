@@ -85,9 +85,8 @@ impl Strategy {
 
     /// Find available free regions on the disk
     fn find_free_regions(&self, planner: &Planner) -> Vec<Region> {
-        let disk_size = planner.original_device().size();
         let mut regions = Vec::new();
-        let mut current = 0;
+        let (mut current, disk_size) = planner.offsets();
 
         // Sort existing partitions by start position
         let mut layout = planner.current_layout();
@@ -147,7 +146,8 @@ impl Strategy {
             AllocationStrategy::InitializeWholeDisk => {
                 // Clear existing partitions and start fresh
                 planner.plan_initialize_disk()?;
-                Region::new(0, planner.original_device().size())
+                let (start, end) = planner.offsets();
+                Region::new(start, end)
             }
             AllocationStrategy::LargestFree => {
                 let free_regions = self.find_free_regions(planner);

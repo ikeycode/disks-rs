@@ -9,7 +9,7 @@ use disks::BlockDevice;
 use partitioning::{
     gpt::{disk::LogicalBlockSize, mbr::ProtectiveMBR, partition_types, GptConfig},
     loopback,
-    planner::Planner,
+    planner::{format_size, Planner},
     sparsefile,
     strategy::{AllocationStrategy, PartitionRequest, SizeRequirement, Strategy},
 };
@@ -68,10 +68,17 @@ where
     let mut gpt_disk = gpt_config.create(&path)?;
     gpt_disk.write_inplace()?;
 
+    eprintln!("GPT: {:?}", gpt_disk);
+
+    let first_usable = gpt_disk.header().first_usable * 512;
+    let last_usable = gpt_disk.header().last_usable * 512;
+
     // Connect the planner.
     let disk = disks::loopback::Device::from_device_path(path).unwrap();
     let block = BlockDevice::loopback_device(disk);
-    let mut planner = Planner::new(block);
+    let mut planner = Planner::new(block)
+        .with_start_offset(first_usable)
+        .with_end_offset(last_usable);
     let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
     // efi
@@ -111,9 +118,19 @@ where
     info!("Computed: {}", planner.describe_changes());
 
     // TODO: Track the types in the API and use them here
-    for partition in planner.current_layout() {
+    for (n, partition) in planner.current_layout().iter().enumerate() {
         info!("Adding partition: {:?}", &partition);
-        gpt_disk.add_partition("", partition.size(), partition_types::LINUX_FS, 0, None)?;
+        assert_ne!(0, partition.size());
+        let size = partitioning::planner::format_size(partition.size());
+        info!("Partition {} size: {}, at {}", n, size, format_size(partition.start));
+        gpt_disk.add_partition_at(
+            "",
+            n as u32 + 1,
+            partition.start / 512,
+            partition.size() / 512,
+            partition_types::LINUX_FS,
+            0,
+        )?;
     }
 
     let _ = gpt_disk.write()?;
