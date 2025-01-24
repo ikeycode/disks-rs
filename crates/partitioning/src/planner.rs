@@ -163,14 +163,27 @@ pub fn format_position(pos: u64, total: u64) -> String {
     format!("{}% ({})", (pos as f64 / total as f64 * 100.0) as u64, format_size(pos))
 }
 
-// Align up to the nearest multiple of alignment
-fn align_up(value: u64, alignment: u64) -> u64 {
-    value.div_ceil(alignment) * alignment
+/// Check if a value is already aligned to the given boundary
+fn is_aligned(value: u64, alignment: u64) -> bool {
+    value % alignment == 0
 }
 
-// Align down to the nearest multiple of alignment
+/// Align up to the nearest multiple of alignment, unless already aligned
+fn align_up(value: u64, alignment: u64) -> u64 {
+    match value % alignment {
+        0 => value,
+        remainder if remainder > (alignment / 2) => value + (alignment - remainder),
+        remainder => value - remainder,
+    }
+}
+
+/// Align down to the nearest multiple of alignment, unless already aligned
 fn align_down(value: u64, alignment: u64) -> u64 {
-    (value / alignment) * alignment
+    match value % alignment {
+        0 => value,
+        remainder if remainder < (alignment / 2) => value - remainder,
+        remainder => value + (alignment - remainder),
+    }
 }
 
 impl Change {
@@ -289,12 +302,30 @@ impl Planner {
     ///
     pub fn plan_add_partition(&mut self, start: u64, end: u64) -> Result<(), PlanError> {
         debug!("Planning to add partition {}..{}", start, end);
+        debug!("Original size requested: {}", end - start);
 
-        // Align start and end positions
-        let aligned_start = align_up(start, PARTITION_ALIGNMENT);
-        let aligned_end = align_down(end, PARTITION_ALIGNMENT);
+        // Align start and end positions, capping to usable bounds
+        let aligned_start = std::cmp::max(align_up(start, PARTITION_ALIGNMENT), self.usable_start);
+        let aligned_end = std::cmp::min(align_down(end, PARTITION_ALIGNMENT), self.usable_end);
+
         debug!("Aligned positions: {}..{}", aligned_start, aligned_end);
+        debug!("Size after alignment: {}", aligned_end - aligned_start);
 
+        // Validate input alignments
+        if is_aligned(start, PARTITION_ALIGNMENT) && aligned_start != start {
+            warn!("Start position was already aligned but was re-aligned differently");
+            return Err(PlanError::RegionOutOfBounds {
+                start: aligned_start,
+                end: aligned_end,
+            });
+        }
+        if is_aligned(end, PARTITION_ALIGNMENT) && aligned_end != end {
+            warn!("End position was already aligned but was re-aligned differently");
+            return Err(PlanError::RegionOutOfBounds {
+                start: aligned_start,
+                end: aligned_end,
+            });
+        }
         // Validate bounds against usable disk region
         if aligned_start < self.usable_start || aligned_end > self.usable_end {
             warn!("Partition would be outside usable disk region");
@@ -404,6 +435,7 @@ impl Planner {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -572,5 +604,49 @@ mod tests {
             planner.plan_add_partition(150 * GB, 201 * GB),
             Err(PlanError::RegionOverlap { .. })
         ));
+    }
+
+    #[test]
+    fn test_alignment() {
+        let disk = create_mock_disk();
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
+
+        // Already aligned values should not be re-aligned
+        let aligned_start = PARTITION_ALIGNMENT;
+        let aligned_end = 2 * PARTITION_ALIGNMENT;
+        assert!(planner.plan_add_partition(aligned_start, aligned_end).is_ok());
+
+        // Test that non-aligned values get properly aligned
+        let unaligned_start = (2 * PARTITION_ALIGNMENT) + 100;
+        let unaligned_end = (3 * PARTITION_ALIGNMENT) - 100;
+        assert!(planner.plan_add_partition(unaligned_start, unaligned_end).is_ok());
+
+        let layout = planner.current_layout();
+        assert_eq!(layout[0].start, aligned_start);
+        assert_eq!(layout[0].end, aligned_end);
+
+        assert_eq!(layout[1].start, 2 * PARTITION_ALIGNMENT); // Aligned up
+        assert_eq!(layout[1].end, 3 * PARTITION_ALIGNMENT); // Aligned down
+    }
+
+    #[test]
+    fn test_alignment_functions() {
+        let mb = 1024 * 1024;
+        let kb = 1024;
+
+        // Test align_up
+        assert_eq!(align_up(2 * mb + 100, mb), 2 * mb);
+        assert_eq!(align_up(2 * mb, mb), 2 * mb); // Already aligned
+
+        // Test align_up past boundary
+        assert_eq!(align_up(2 * mb + (600 * kb), mb), 3 * mb);
+
+        // Test align_down
+        assert_eq!(align_down(4 * mb - 100, mb), 4 * mb);
+        assert_eq!(align_down(4 * mb, mb), 4 * mb); // Already aligned
+
+        // Test align_down past boundary
+
+        assert_eq!(align_down(4 * mb + (600 * kb), mb), 5 * mb);
     }
 }
