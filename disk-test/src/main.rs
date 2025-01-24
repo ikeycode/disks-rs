@@ -80,7 +80,6 @@ where
             min: 256 * 1024 * 1024,
             max: 1 * 1024 * 1024 * 1024,
         },
-        alignment: None,
     });
     // xbootldr
     strategy.add_request(PartitionRequest {
@@ -88,7 +87,6 @@ where
             min: 2 * 1024 * 1024 * 1024,
             max: 4 * 1024 * 1024 * 1024,
         },
-        alignment: None,
     });
     // swap
     strategy.add_request(PartitionRequest {
@@ -96,7 +94,6 @@ where
             min: 1 * 1024 * 1024 * 1024,
             max: 4 * 1024 * 1024 * 1024,
         },
-        alignment: None,
     });
     // root
     strategy.add_request(PartitionRequest {
@@ -104,12 +101,10 @@ where
             min: 30 * 1024 * 1024 * 1024,
             max: 120 * 1024 * 1024 * 1024,
         },
-        alignment: None,
     });
     // home
     strategy.add_request(PartitionRequest {
         size: SizeRequirement::AtLeast(50 * 1024 * 1024 * 1024),
-        alignment: None,
     });
     info!("Applying strategy: {}", strategy.describe());
     strategy.apply(&mut planner)?;

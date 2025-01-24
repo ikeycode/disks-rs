@@ -20,11 +20,9 @@
 //! // Request needed partitions
 //! strategy.add_request(PartitionRequest {
 //!     size: SizeRequirement::Exact(512 * 1024 * 1024), // 512MB EFI partition
-//!     alignment: None,
 //! });
 //! strategy.add_request(PartitionRequest {
 //!     size: SizeRequirement::Remaining, // Rest for root
-//!     alignment: None,
 //! });
 //! ```
 
@@ -63,7 +61,6 @@ pub enum SizeRequirement {
 #[derive(Debug, Clone)]
 pub struct PartitionRequest {
     pub size: SizeRequirement,
-    pub alignment: Option<u64>,
 }
 
 /// Handles planning partition layouts according to specific strategies
@@ -265,7 +262,6 @@ mod tests {
     fn root_partition() -> PartitionRequest {
         PartitionRequest {
             size: SizeRequirement::AtLeast(ROOT_MIN),
-            alignment: None,
         }
     }
 
@@ -276,7 +272,6 @@ mod tests {
                 min: ROOT_MIN,
                 max: ROOT_MAX,
             },
-            alignment: None,
         }
     }
 
@@ -284,7 +279,6 @@ mod tests {
     fn efi_partition() -> PartitionRequest {
         PartitionRequest {
             size: SizeRequirement::Exact(EFI_SIZE),
-            alignment: None,
         }
     }
 
@@ -292,7 +286,6 @@ mod tests {
     fn boot_partition() -> PartitionRequest {
         PartitionRequest {
             size: SizeRequirement::Exact(BOOT_SIZE),
-            alignment: None,
         }
     }
 
@@ -303,7 +296,6 @@ mod tests {
                 min: SWAP_MIN,
                 max: SWAP_MAX,
             },
-            alignment: None,
         }
     }
 
@@ -311,7 +303,6 @@ mod tests {
     fn home_partition() -> PartitionRequest {
         PartitionRequest {
             size: SizeRequirement::Remaining,
-            alignment: None,
         }
     }
     fn create_test_disk() -> MockDisk {
@@ -382,7 +373,6 @@ mod tests {
         strategy.add_request(boot_partition());
         strategy.add_request(PartitionRequest {
             size: SizeRequirement::Remaining,
-            alignment: None,
         });
 
         eprintln!("\nMinimal Server Strategy:\n{}", strategy.describe());
