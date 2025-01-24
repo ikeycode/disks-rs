@@ -88,7 +88,7 @@ impl Strategy {
 
     /// Find available free regions on the disk
     fn find_free_regions(&self, planner: &Planner) -> Vec<Region> {
-        let disk_size = planner.original_disk().size();
+        let disk_size = planner.original_device().size();
         let mut regions = Vec::new();
         let mut current = 0;
 
@@ -150,7 +150,7 @@ impl Strategy {
             AllocationStrategy::InitializeWholeDisk => {
                 // Clear existing partitions and start fresh
                 planner.plan_initialize_disk()?;
-                Region::new(0, planner.original_disk().size())
+                Region::new(0, planner.original_device().size())
             }
             AllocationStrategy::LargestFree => {
                 let free_regions = self.find_free_regions(planner);
@@ -247,7 +247,7 @@ impl Strategy {
 mod tests {
     use super::*;
     use crate::planner::Planner;
-    use disks::{mock::MockDisk, Disk};
+    use disks::{mock::MockDisk, BlockDevice};
     use test_log::test;
 
     const MB: u64 = 1024 * 1024;
@@ -322,7 +322,7 @@ mod tests {
     fn test_uefi_clean_install() {
         // Test case: Clean UEFI installation with separate /home
         let disk = create_test_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
         // Standard UEFI layout with separate /home
@@ -356,7 +356,7 @@ mod tests {
         disk.add_partition(100 * MB, 116 * MB); // MSR
         disk.add_partition(116 * MB, 200 * GB); // Windows
 
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::LargestFree);
 
         // Standard Linux layout using remaining space
@@ -375,7 +375,7 @@ mod tests {
     fn test_minimal_server_install() {
         // Test case: Minimal server installation with single root partition
         let disk = create_test_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
         // Simple layout - just boot and root

@@ -12,7 +12,7 @@
 //! - Track and undo changes
 //! - Validate that changes won't conflict with existing partitions
 
-use disks::Disk;
+use disks::BlockDevice;
 use log::{debug, warn};
 use std::collections::VecDeque;
 use thiserror::Error;
@@ -46,8 +46,8 @@ pub enum Change {
 
 /// A disk partitioning planner.
 pub struct Planner {
-    /// The original disk state that we're planning changes for
-    disk: Disk,
+    /// The original block device state that we're planning changes for
+    device: BlockDevice,
     /// Stack of changes that can be undone
     changes: VecDeque<Change>,
     /// Original partition layout for reference
@@ -190,12 +190,16 @@ impl Change {
 
 impl Planner {
     /// Creates a new partitioning planner for the given disk.
-    pub fn new(disk: Disk) -> Self {
-        debug!("Creating new partition planner for disk of size {}", disk.size());
-        // Extract original regions from disk
-        let original_regions = disk.partitions().iter().map(|p| Region::new(p.start, p.end)).collect();
+    pub fn new(device: BlockDevice) -> Self {
+        debug!("Creating new partition planner for device of size {}", device.size());
+        // Extract original regions from device
+        let original_regions = device
+            .partitions()
+            .iter()
+            .map(|p| Region::new(p.start, p.end))
+            .collect();
         Self {
-            disk,
+            device,
             changes: VecDeque::new(),
             original_regions,
         }
@@ -207,7 +211,7 @@ impl Planner {
             return "No pending changes".to_string();
         }
 
-        let disk_size = self.disk.size();
+        let disk_size = self.device.size();
         let mut description = "Pending changes:\n".to_string();
 
         for (i, change) in self.changes.iter().enumerate() {
@@ -269,7 +273,7 @@ impl Planner {
         debug!("Aligned positions: {}..{}", aligned_start, aligned_end);
 
         // Validate bounds
-        if aligned_end > self.disk.size() {
+        if aligned_end > self.device.size() {
             warn!("Partition would exceed disk bounds");
             return Err(PlanError::RegionOutOfBounds {
                 start: aligned_start,
@@ -318,7 +322,7 @@ impl Planner {
             warn!("Invalid partition index {}", index);
             return Err(PlanError::RegionOutOfBounds {
                 start: 0,
-                end: self.disk.size(),
+                end: self.device.size(),
             });
         }
 
@@ -354,9 +358,9 @@ impl Planner {
         &self.changes
     }
 
-    /// Get the original disk state
-    pub fn original_disk(&self) -> &Disk {
-        &self.disk
+    /// Get the original block device state
+    pub fn original_device(&self) -> &BlockDevice {
+        &self.device
     }
     /// Plan to initialize a clean partition layout
     pub fn plan_initialize_disk(&mut self) -> Result<(), PlanError> {
@@ -399,7 +403,7 @@ mod tests {
     #[test]
     fn test_fresh_installation() {
         let disk = create_mock_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Create typical Linux partition layout with absolute positions
         // - 0 -> 512MB: EFI System Partition
@@ -421,7 +425,7 @@ mod tests {
     #[test]
     fn test_dual_boot_with_windows() {
         let disk = create_windows_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Available space starts after Windows partitions (~ 200.6GB)
         let start = 200 * GB + 616 * MB;
@@ -448,7 +452,7 @@ mod tests {
         disk.add_partition(512 * MB, 4 * GB + 512 * MB); // Swap: 512MB -> 4.5GB
         disk.add_partition(4 * GB + 512 * MB, 500 * GB); // Root: 4.5GB -> 500GB
 
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Delete old Linux partitions
         assert!(planner.plan_delete_partition(1).is_ok()); // Delete swap
@@ -471,7 +475,7 @@ mod tests {
     #[test]
     fn test_region_validation() {
         let disk = create_mock_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Test out of bounds
         assert!(matches!(
@@ -490,7 +494,7 @@ mod tests {
     #[test]
     fn test_undo_operations() {
         let disk = create_mock_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Add some partitions
         assert!(planner.plan_add_partition(0, 100 * GB).is_ok());
@@ -512,7 +516,7 @@ mod tests {
     #[test]
     fn test_partition_boundaries() {
         let disk = create_mock_disk();
-        let mut planner = Planner::new(Disk::Mock(disk));
+        let mut planner = Planner::new(BlockDevice::mock_device(disk));
 
         // Add first partition from 0 to 100GB
         assert!(planner.plan_add_partition(0, 100 * GB).is_ok());
