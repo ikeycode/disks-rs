@@ -48,7 +48,7 @@ impl Device {
         if matching {
             Some(Self {
                 name: name.to_owned(),
-                device: PathBuf::from(DEVFS_DIR).join(name),
+                device: PathBuf::from("/").join(DEVFS_DIR).join(name),
                 file,
                 disk,
             })
