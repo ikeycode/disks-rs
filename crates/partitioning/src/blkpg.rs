@@ -157,7 +157,7 @@ pub fn sync_gpt_partitions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
         .ok_or(Error::Io(io::Error::from(io::ErrorKind::InvalidInput)))?
         .to_string_lossy()
         .to_string();
-    let disk = BasicDisk::from_sysfs_path(&PathBuf::from("/sys/class/block"), &base_name)
+    let disk = BasicDisk::from_sysfs_path(&PathBuf::from("/"), &base_name)
         .ok_or(Error::Io(io::Error::from(io::ErrorKind::InvalidInput)))?;
 
     for partition in disk.partitions() {
