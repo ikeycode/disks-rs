@@ -9,7 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{mmc, mock, nvme, partition::Partition, scsi, sysfs, virt, DEVFS_DIR};
+use crate::SYSFS_DIR;
+use crate::{mmc, mock, nvme, partition::Partition, scsi, sysfs, virt};
 
 /// Represents the type of disk device.
 #[derive(Debug)]
@@ -144,7 +145,7 @@ pub trait DiskInit: Sized {
 
 impl DiskInit for BasicDisk {
     fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
-        let node = sysroot.join(name);
+        let node = sysroot.join(SYSFS_DIR).join(name);
 
         log::debug!("Initializing disk at sysfs path: {:?}", node);
 
@@ -162,7 +163,7 @@ impl DiskInit for BasicDisk {
         let sectors = sysfs::read(&node, "size").unwrap_or(0);
         log::debug!("Read {} sectors for disk {}", sectors, name);
 
-        let device = PathBuf::from(DEVFS_DIR).join(name);
+        let device = PathBuf::from("/dev").join(name);
         log::debug!("Device path: {:?}", device);
 
         let model = sysfs::read(&node, "device/model");

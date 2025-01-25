@@ -139,7 +139,7 @@ impl BlockDevice {
         // For all the discovered block devices, try to create a Disk instance
         // At this point we completely ignore partitions. They come later.
         for entry in entries {
-            if let Ok(device) = BlockDevice::from_sysfs_path(&sysfs_dir, &entry) {
+            if let Ok(device) = BlockDevice::from_sysfs_path(sysroot, &entry) {
                 devices.push(device);
             }
         }

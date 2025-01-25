@@ -5,7 +5,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::{sysfs, DEVFS_DIR};
+use crate::{sysfs, DEVFS_DIR, SYSFS_DIR};
 
 /// Represents a partition on a disk device
 /// - Size in sectors
@@ -49,7 +49,7 @@ impl Partition {
     /// * `Some(Partition)` if partition exists and is valid
     /// * `None` if partition doesn't exist or is invalid
     pub fn from_sysfs_path(sysroot: &Path, name: &str) -> Option<Self> {
-        let node = sysroot.join(name);
+        let node = sysroot.join(SYSFS_DIR).join(name);
         let partition_no: u32 = sysfs::read(&node, "partition")?;
         let start = sysfs::read(&node, "start")?;
         let size = sysfs::read(&node, "size")?;
