@@ -188,9 +188,10 @@ impl Superblock {
     /// Note: This will read the minimum necessary bytes to detect the superblock,
     /// which is more efficient than reading the entire device.
     pub fn from_reader<R: Read + Seek>(reader: &mut R) -> Result<Self, Error> {
-        let mut bytes = Vec::with_capacity(128 * 1024); // 128KB should cover all superblock offsets
+        // Preallocate a fixed buffer for the largest superblock we need to read
+        let mut bytes = vec![0u8; 128 * 1024]; // 128KB covers all superblock offsets
         reader.rewind()?;
-        reader.read_to_end(&mut bytes)?;
+        reader.read_exact(&mut bytes)?;
 
         Self::from_bytes(&bytes)
     }
