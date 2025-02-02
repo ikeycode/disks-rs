@@ -6,7 +6,6 @@ default-members = [
 ]
 
 members = [
-    "disk-test",
     "crates/*",
 ]
 
