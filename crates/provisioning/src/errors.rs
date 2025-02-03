@@ -113,3 +113,15 @@ pub struct InvalidArguments {
     #[help]
     pub advice: Option<String>,
 }
+
+/// Error for missing types
+#[derive(Debug, Diagnostic, Error)]
+#[error("missing type")]
+#[diagnostic(severity(error))]
+pub struct MissingType {
+    #[label]
+    pub at: SourceSpan,
+
+    #[help]
+    pub advice: Option<String>,
+}

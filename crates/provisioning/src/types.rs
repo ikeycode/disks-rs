@@ -11,6 +11,9 @@ use crate::Error;
 mod partition_table;
 pub use partition_table::*;
 
+mod units;
+pub use units::*;
+
 /// The type of a KDL value
 #[derive(Debug)]
 pub enum KdlType {
@@ -54,4 +57,8 @@ impl fmt::Display for KdlType {
 
 pub trait FromKdlProperty<'a>: Sized {
     fn from_kdl_property(entry: &'a KdlEntry) -> Result<Self, Error>;
+}
+
+pub trait FromKdlType<'a>: Sized {
+    fn from_kdl_type(id: &'a KdlEntry) -> Result<Self, Error>;
 }
