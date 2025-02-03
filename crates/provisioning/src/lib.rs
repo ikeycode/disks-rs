@@ -98,10 +98,9 @@ impl Parser {
                     Err(e) => Either::Right(e),
                 });
 
-        let fatal_errors = errors.iter().filter(|e| match e.severity().unwrap_or(Severity::Error) {
-            Severity::Error => true,
-            _ => true,
-        });
+        let fatal_errors = errors
+            .iter()
+            .filter(|e| matches!(e.severity().unwrap_or(Severity::Error), Severity::Error));
 
         // If we have any fatal errors, bail out
         // TODO: Add an error sink to allow bubbling up of warnings/diagnostics

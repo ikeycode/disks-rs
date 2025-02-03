@@ -32,9 +32,9 @@ type CommandExec = for<'a> fn(Context<'a>) -> Result<Command, crate::Error>;
 
 /// Map of command names to functions
 static COMMANDS: phf::Map<&'static str, CommandExec> = phf::phf_map! {
-    // "find-disk" => dummy_command,
-    // "create-partition" => dummy_command,
-    // "create-partition-table" => dummy_command,
+    "find-disk" => dummy_command,
+    "create-partition" => dummy_command,
+    "create-partition-table" => dummy_command,
 };
 
 /// Parse a command from a node if possible
