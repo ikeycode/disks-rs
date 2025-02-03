@@ -4,9 +4,12 @@
 
 use std::fmt;
 
-use kdl::KdlValue;
+use kdl::{KdlEntry, KdlValue};
 
 use crate::Error;
+
+mod partition_table;
+pub use partition_table::*;
 
 /// The type of a KDL value
 #[derive(Debug)]
@@ -47,4 +50,8 @@ impl fmt::Display for KdlType {
             KdlType::Integer => f.write_str("int"),
         }
     }
+}
+
+pub trait FromKdlProperty<'a>: Sized {
+    fn from_kdl_property(entry: &'a KdlEntry) -> Result<Self, Error>;
 }
