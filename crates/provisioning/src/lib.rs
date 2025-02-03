@@ -57,7 +57,7 @@ impl Parser {
     pub fn new(name: String, contents: String) -> Result<Self, Error> {
         let source = Arc::new(contents.to_string());
         let ns = NamedSource::new(name, source).with_language("KDL");
-        let d = KdlDocument::parse(ns.inner())?;
+        let d = KdlDocument::parse_v2(ns.inner())?;
 
         let mut strategies = vec![];
 
