@@ -7,6 +7,10 @@ use std::sync::Arc;
 use kdl::KdlNode;
 use miette::NamedSource;
 
+mod create_partition;
+mod create_partition_table;
+mod find_disk;
+
 /// Command evaluation context
 pub(crate) struct Context<'a> {
     /// The document being parsed
@@ -19,12 +23,9 @@ pub(crate) struct Context<'a> {
 /// A command
 #[derive(Debug)]
 pub enum Command {
-    // TODO: Add command variants
-    Unimplemented,
-}
-
-fn dummy_command(_context: Context) -> Result<Command, crate::Error> {
-    unimplemented!("Command support not implemented");
+    CreatePartition,
+    CreatePartitionTable,
+    FindDisk,
 }
 
 /// Command execution function
@@ -32,9 +33,9 @@ type CommandExec = for<'a> fn(Context<'a>) -> Result<Command, crate::Error>;
 
 /// Map of command names to functions
 static COMMANDS: phf::Map<&'static str, CommandExec> = phf::phf_map! {
-    "find-disk" => dummy_command,
-    "create-partition" => dummy_command,
-    "create-partition-table" => dummy_command,
+    "find-disk" => find_disk::parse,
+    "create-partition" => create_partition::parse,
+    "create-partition-table" => create_partition_table::parse,
 };
 
 /// Parse a command from a node if possible
