@@ -7,8 +7,6 @@ use std::{io, sync::Arc};
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
-use crate::KdlType;
-
 /// Error type for the provisioning crate
 #[derive(Diagnostic, Debug, Error)]
 pub enum Error {
@@ -21,6 +19,9 @@ pub enum Error {
 
     #[error("unknown type")]
     UnknownType,
+
+    #[error("unknown variant")]
+    UnknownVariant,
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -36,14 +37,16 @@ pub enum Error {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
-    ParseError(#[from] ParseError),
+    UnsupportedValue(#[from] UnsupportedValue),
 }
 
 /// Merged error for parsing failures
 /// Returns a list of diagnostics for the user
 #[derive(Debug, Diagnostic, Error)]
 #[error("failed to parse KDL")]
+#[diagnostic(severity(error))]
 pub struct ParseError {
+    #[source_code]
     pub src: NamedSource<Arc<String>>,
     #[related]
     pub diagnostics: Vec<Error>,
@@ -51,54 +54,45 @@ pub struct ParseError {
 
 /// Error for invalid types
 #[derive(Debug, Diagnostic, Error)]
-#[error("property {id} should be {expected_type}, not {found_type}")]
+#[error("invalid type")]
 #[diagnostic(severity(error))]
 pub struct InvalidType {
-    #[source_code]
-    pub src: NamedSource<Arc<String>>,
-
-    #[label("here")]
+    #[label]
     pub at: SourceSpan,
-
-    #[help]
-    pub advice: Option<String>,
-
-    pub id: &'static str,
-    pub expected_type: KdlType,
-    pub found_type: KdlType,
 }
 
 /// Error for missing mandatory properties
 #[derive(Debug, Diagnostic, Error)]
-#[error("{name} is missing mandatory property: {id}")]
+#[error("missing property: {id}")]
 #[diagnostic(severity(error))]
 pub struct MissingProperty {
-    #[source_code]
-    pub src: NamedSource<Arc<String>>,
-
-    #[label("here")]
+    #[label]
     pub at: SourceSpan,
 
-    // The name of the node
-    pub name: String,
-
-    // The name of the missing property
     pub id: &'static str,
+
+    #[help]
+    pub advice: Option<String>,
 }
 
 /// Error for unsupported node types
 #[derive(Debug, Diagnostic, Error)]
-#[error("unsupported node: {id}")]
+#[error("unsupported node: {name}")]
 #[diagnostic(severity(warning))]
 pub struct UnsupportedNode {
-    #[source_code]
-    pub src: NamedSource<Arc<String>>,
-
-    #[label("here")]
+    #[label]
     pub at: SourceSpan,
 
-    // The name of the node
-    pub id: String,
+    pub name: String,
+}
+
+/// Error for unsupported values
+#[derive(Debug, Diagnostic, Error)]
+#[error("unsupported value")]
+#[diagnostic(severity(error))]
+pub struct UnsupportedValue {
+    #[label]
+    pub at: SourceSpan,
 
     #[help]
     pub advice: Option<String>,

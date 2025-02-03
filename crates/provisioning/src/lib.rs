@@ -15,10 +15,16 @@ mod helpers;
 use helpers::*;
 
 mod types;
-use types::*;
+pub use types::*;
 
 mod commands;
 use commands::*;
+
+/// Command evaluation context
+pub struct Context<'a> {
+    /// The node being parsed
+    pub(crate) node: &'a KdlNode,
+}
 
 /// A strategy definition
 #[derive(Debug)]
@@ -37,66 +43,106 @@ pub struct StrategyDefinition {
 }
 
 /// A parser for provisioning strategies
+#[derive(Debug)]
 pub struct Parser {
     pub strategies: Vec<StrategyDefinition>,
 }
 
 impl Parser {
     /// Create a new parser from a file path
-    pub fn new_for_path<P>(file: P) -> Result<Self, Error>
+    pub fn new_for_path<P>(file: P) -> Result<Self, ParseError>
     where
         P: AsRef<Path>,
     {
         let file = file.as_ref();
         let name = file.to_string_lossy();
-        let txt = fs::read_to_string(file)?;
+        let txt = fs::read_to_string(file).map_err(|e| ParseError {
+            src: NamedSource::new(&name, Arc::new("".to_string())),
+            diagnostics: vec![e.into()],
+        })?;
         Self::new(name.to_string(), txt)
     }
 
     /// Create a new parser from a string
-    pub fn new(name: String, contents: String) -> Result<Self, Error> {
+    pub fn new(name: String, contents: String) -> Result<Self, ParseError> {
         let source = Arc::new(contents.to_string());
         let ns = NamedSource::new(name, source).with_language("KDL");
-        let d = KdlDocument::parse_v2(ns.inner())?;
+        let mut errors = vec![];
+
+        // Parse the document and collect any errors
+        let d = KdlDocument::parse_v2(ns.inner()).map_err(|e| ParseError {
+            src: ns.clone(),
+            diagnostics: vec![e.into()],
+        })?;
 
         let mut strategies = vec![];
 
         for node in d.nodes() {
             match node.name().value() {
-                "strategy" => {
-                    strategies.push(Self::parse_strategy(&ns, node)?);
-                }
-                what => {
-                    return Err(UnsupportedNode {
-                        src: ns.clone(),
-                        at: node.span(),
-                        id: what.to_string(),
-                        advice: Some("only 'strategy' nodes are supported".to_owned()),
-                    })?;
+                "strategy" => match Self::parse_strategy(node) {
+                    Ok(strategy) => strategies.push(strategy),
+                    Err(e) => errors.extend(e),
+                },
+                _ => {
+                    errors.push(
+                        UnsupportedNode {
+                            at: node.span(),
+                            name: node.name().to_string(),
+                        }
+                        .into(),
+                    );
                 }
             }
+        }
+
+        if !errors.is_empty() {
+            return Err(ParseError {
+                src: ns,
+                diagnostics: errors,
+            });
         }
 
         Ok(Self { strategies })
     }
 
     // Parse a strategy node
-    fn parse_strategy(ns: &NamedSource<Arc<String>>, node: &KdlNode) -> Result<StrategyDefinition, Error> {
-        let name = get_property_str(ns, node, "name")?;
-        let summary = get_property_str(ns, node, "summary")?;
+    fn parse_strategy(node: &KdlNode) -> Result<StrategyDefinition, Vec<Error>> {
+        let mut errors = vec![];
+        let name = match get_property_str(node, "name") {
+            Ok(name) => name,
+            Err(e) => {
+                errors.push(e);
+                Default::default()
+            }
+        };
+        let summary = match get_property_str(node, "summary") {
+            Ok(summary) => summary,
+            Err(e) => {
+                errors.push(e);
+                Default::default()
+            }
+        };
         let inherits = if node.entry("inherits").is_some() {
-            Some(get_property_str(ns, node, "inherits")?)
+            match get_property_str(node, "inherits") {
+                Ok(inherits) => Some(inherits),
+                Err(e) => {
+                    errors.push(e);
+                    None
+                }
+            }
         } else {
             None
         };
 
         // Collect all failures in this strategy
-        let (commands, errors): (Vec<_>, Vec<_>) =
+        let (commands, child_errors): (Vec<_>, Vec<_>) =
             node.iter_children()
-                .partition_map(|node| match parse_command(Context { document: ns, node }) {
+                .partition_map(|node| match parse_command(Context { node }) {
                     Ok(cmd) => Either::Left(cmd),
                     Err(e) => Either::Right(e),
                 });
+
+        errors.extend(child_errors);
 
         let fatal_errors = errors
             .iter()
@@ -106,10 +152,7 @@ impl Parser {
         // TODO: Add an error sink to allow bubbling up of warnings/diagnostics
         // for tooling integration
         if fatal_errors.clone().next().is_some() {
-            return Err(ParseError {
-                src: ns.clone(),
-                diagnostics: errors,
-            })?;
+            return Err(errors);
         }
 
         let strategy = StrategyDefinition {
@@ -128,8 +171,10 @@ mod tests {
     use crate::Parser;
 
     #[test]
-    #[should_panic]
-    fn test_basic() {
-        let _p = Parser::new_for_path("tests/use_whole_disk.kdl").unwrap();
+    //#[should_panic]
+    fn test_basic() -> miette::Result<()> {
+        let _p = Parser::new_for_path("tests/use_whole_disk.kdl")?;
+        eprintln!("p: {_p:?}");
+        Ok(())
     }
 }
