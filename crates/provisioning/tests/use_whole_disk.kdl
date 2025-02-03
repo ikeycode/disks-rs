@@ -1,0 +1,57 @@
+strategy name="whole_disk" summary="Wipe and use an entire disk" {
+    // Find a disk with the given constraints and then label it
+    // We may find "any disk"
+    // The result is stored in "root_disk" (disk=..)
+    find-disk "root_disk" {
+        constraints {
+            min (GB)"30"
+            //- partition-table "gpt" // Require gpt for reuse
+        }
+    }
+
+    // Create a partition table. Defaults to GPT
+    create-partition-table type="gpt" disk="root_disk"
+
+    // Create the ESP
+    create-partition disk="root_disk" id="esp" {
+        constraints {
+            min (GB)1
+            max (GB)2
+        }
+        type (GUID)"LinuxRoot"
+    }
+
+    // Create xbootldr
+    create-partition disk="root_disk" id="xbootldr" {
+        constraints {
+            min (GB)2
+            max (GB)4
+        }
+        type (GUID)"LinuxExtendedBoot"
+    }
+
+    // Create a partition for rootfs
+    create-partition disk="root_disk" id="root" {
+        constraints {
+            min (GB)30
+            max (GB)120
+        }
+        type (GUID)"LinuxRoot"
+    }
+
+    // find a partition (bound to root_disk here)
+    // find-partition guid="$ESP"
+}
+
+strategy name="whole_disk_with_swap" inherits="whole_disk" \
+    summary="Wipe disk, include a swap" \
+{
+    // Create a swap partition in addition to the base strategy
+    create-partition disk="root_disk" id="swap" {
+        constraints {
+            min (GB)4
+            max (GB)8
+        }
+        type (GUID)"LinuxSwap"
+    }
+}
