@@ -25,6 +25,10 @@ pub enum Error {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
+    InvalidArguments(#[from] InvalidArguments),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
     InvalidType(#[from] InvalidType),
 
     #[diagnostic(transparent)]
@@ -91,6 +95,18 @@ pub struct UnsupportedNode {
 #[error("unsupported value")]
 #[diagnostic(severity(error))]
 pub struct UnsupportedValue {
+    #[label]
+    pub at: SourceSpan,
+
+    #[help]
+    pub advice: Option<String>,
+}
+
+/// Error for invalid arguments
+#[derive(Debug, Diagnostic, Error)]
+#[error("invalid arguments")]
+#[diagnostic(severity(error))]
+pub struct InvalidArguments {
     #[label]
     pub at: SourceSpan,
 

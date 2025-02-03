@@ -13,7 +13,7 @@ mod find_disk;
 pub enum Command {
     CreatePartition,
     CreatePartitionTable(Box<create_partition_table::Command>),
-    FindDisk,
+    FindDisk(Box<find_disk::Command>),
 }
 
 /// Command execution function
@@ -21,7 +21,7 @@ type CommandExec = for<'a> fn(Context<'a>) -> Result<Command, crate::Error>;
 
 /// Map of command names to functions
 static COMMANDS: phf::Map<&'static str, CommandExec> = phf::phf_map! {
-    //"find-disk" => find_disk::parse,
+    "find-disk" => find_disk::parse,
     //"create-partition" => create_partition::parse,
     "create-partition-table" => create_partition_table::parse,
 };
