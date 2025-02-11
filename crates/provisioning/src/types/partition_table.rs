@@ -45,7 +45,7 @@ impl FromKdlProperty<'_> for PartitionTableType {
         let value = kdl_value_to_string(entry)?;
         let v = value.parse().map_err(|_| crate::UnsupportedValue {
             at: entry.span(),
-            advice: Some("'gpt' and 'mbr' are supported".into()),
+            advice: Some("'gpt' and 'msdos' are supported".into()),
         })?;
         Ok(v)
     }
