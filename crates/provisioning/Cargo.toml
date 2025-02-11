@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dev-dependencies]
-miette = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
 
 [dependencies]
 kdl = { workspace = true, features = ["span"] }
