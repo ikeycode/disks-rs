@@ -7,6 +7,8 @@ use std::{io, sync::Arc};
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
+use crate::KdlType;
+
 /// Error type for the provisioning crate
 #[derive(Diagnostic, Debug, Error)]
 pub enum Error {
@@ -58,11 +60,14 @@ pub struct ParseError {
 
 /// Error for invalid types
 #[derive(Debug, Diagnostic, Error)]
-#[error("invalid type")]
+#[error("invalid type, expected {expected_type}")]
 #[diagnostic(severity(error))]
 pub struct InvalidType {
     #[label]
     pub at: SourceSpan,
+
+    /// The expected type
+    pub expected_type: KdlType,
 }
 
 /// Error for missing mandatory properties

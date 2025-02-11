@@ -24,12 +24,13 @@ pub(crate) fn parse(context: Context<'_>) -> Result<super::Command, crate::Error
         0 => {
             return Err(crate::InvalidArguments {
                 at: context.node.span(),
-                advice: Some("find-disk <name> - provide a name for the storage device".into()),
+                advice: Some("find-disk <name> - you must provide a name to store the object".into()),
             }
             .into())
         }
         1 => arguments[0].value().as_string().ok_or(crate::InvalidType {
             at: arguments[0].span(),
+            expected_type: crate::KdlType::String,
         })?,
         _ => {
             return Err(crate::InvalidArguments {

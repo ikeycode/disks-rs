@@ -4,7 +4,7 @@
 
 use kdl::{KdlEntry, KdlNode};
 
-use crate::{Error, InvalidType, MissingProperty};
+use crate::{Error, InvalidType, KdlType, MissingProperty};
 
 // Get a property from a node
 pub(crate) fn get_kdl_property<'a>(node: &'a KdlNode, name: &'static str) -> Result<&'a KdlEntry, Error> {
@@ -19,7 +19,10 @@ pub(crate) fn get_kdl_property<'a>(node: &'a KdlNode, name: &'static str) -> Res
 
 // Get a string property from a value
 pub(crate) fn kdl_value_to_string(entry: &kdl::KdlEntry) -> Result<String, Error> {
-    let value = entry.value().as_string().ok_or(InvalidType { at: entry.span() })?;
+    let value = entry.value().as_string().ok_or(InvalidType {
+        at: entry.span(),
+        expected_type: KdlType::String,
+    })?;
 
     Ok(value.to_owned())
 }
