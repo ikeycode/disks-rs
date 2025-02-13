@@ -15,6 +15,7 @@ use zerocopy::FromBytes;
 pub mod btrfs;
 pub mod ext4;
 pub mod f2fs;
+pub mod fat;
 pub mod luks2;
 pub mod xfs;
 
@@ -99,6 +100,8 @@ pub enum Kind {
     F2FS,
     /// XFS filesystem
     XFS,
+    /// FAT filesystem
+    FAT,
 }
 
 impl std::fmt::Display for Kind {
@@ -109,6 +112,7 @@ impl std::fmt::Display for Kind {
             Kind::LUKS2 => f.write_str("luks2"),
             Kind::F2FS => f.write_str("f2fs"),
             Kind::XFS => f.write_str("xfs"),
+            Kind::FAT => f.write_str("fat"),
         }
     }
 }
@@ -119,6 +123,7 @@ pub enum Superblock {
     F2FS(Box<f2fs::F2FS>),
     LUKS2(Box<luks2::Luks2>),
     XFS(Box<xfs::XFS>),
+    FAT(Box<fat::Fat>),
 }
 
 impl Superblock {
@@ -130,6 +135,7 @@ impl Superblock {
             Superblock::F2FS(_) => Kind::F2FS,
             Superblock::LUKS2(_) => Kind::LUKS2,
             Superblock::XFS(_) => Kind::XFS,
+            Superblock::FAT(_) => Kind::FAT,
         }
     }
 
@@ -141,6 +147,7 @@ impl Superblock {
             Superblock::F2FS(block) => block.uuid(),
             Superblock::LUKS2(block) => block.uuid(),
             Superblock::XFS(block) => block.uuid(),
+            Superblock::FAT(block) => block.uuid(),
         }
     }
 
@@ -152,6 +159,7 @@ impl Superblock {
             Superblock::F2FS(block) => block.label(),
             Superblock::LUKS2(block) => block.label(),
             Superblock::XFS(block) => block.label(),
+            Superblock::FAT(block) => block.label(),
         }
     }
 }
@@ -179,7 +187,9 @@ impl Superblock {
         if let Some(sb) = detect_superblock::<luks2::Luks2, _>(&mut cursor)? {
             return Ok(Self::LUKS2(Box::new(sb)));
         }
-
+        if let Some(sb) = detect_superblock::<fat::Fat, _>(&mut cursor)? {
+            return Ok(Self::FAT(Box::new(sb)));
+        }
         Err(Error::UnknownSuperblock)
     }
 
@@ -231,6 +241,8 @@ mod tests {
             ),
             ("luks+ext4", Kind::LUKS2, "", "be373cae-2bd1-4ad5-953f-3463b2e53e59"),
             ("xfs", Kind::XFS, "BLSFORME", "45e8a3bf-8114-400f-95b0-380d0fb7d42d"),
+            ("fat16", Kind::FAT, "TESTLABEL", "A1B2-C3D4"),
+            ("fat32", Kind::FAT, "TESTLABEL", "A1B2-C3D4"),
         ];
 
         // Pre-allocate a buffer for determination tests
