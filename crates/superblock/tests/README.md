@@ -32,3 +32,27 @@ Limited to 12-char volume name
 
     UUID : 45e8a3bf-8114-400f-95b0-380d0fb7d42d
     LABEL: BLSFORME
+
+## fat16.img.zst
+
+  UUID : A1B2-C3D4  (volume id not a uuid)
+  LABEL: TESTLABEL
+
+  created with commands :
+
+    dd if=/dev/zero of=fat16.img bs=512 count=32768
+    mkfs.fat -F 16 -n "TESTLABEL" -i A1B2C3D4 fat16.img
+    zstd fat16.img
+    rm fat16.img
+
+## fat32.img.zst
+
+  UUID : A1B2-C3D4  (volume id not a uuid)
+  LABEL: TESTLABEL
+
+  created with commands :
+
+    dd if=/dev/zero of=fat32.img bs=512 count=32768
+    mkfs.fat -F 32 -n "TESTLABEL" -i A1B2C3D4 fat32.img
+    zstd fat32.img
+    rm fat32.img
