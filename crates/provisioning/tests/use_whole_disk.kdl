@@ -4,8 +4,7 @@ strategy name="whole_disk" summary="Wipe and use an entire disk" {
     // The result is stored in "root_disk" (disk=..)
     find-disk "root_disk" {
         constraints {
-            min (GB)"30"
-            //- partition-table "gpt" // Require gpt for reuse
+            min (GB)30
         }
     }
 

@@ -4,11 +4,12 @@
 
 use itertools::Itertools;
 
-use crate::Context;
+use crate::{Constraints, Context};
 
 #[derive(Debug)]
 pub struct Command {
     pub name: String,
+    pub constraints: Option<Constraints>,
 }
 
 /// Generate a command to find a disk
@@ -41,5 +42,15 @@ pub(crate) fn parse(context: Context<'_>) -> Result<super::Command, crate::Error
         }
     };
 
-    Ok(super::Command::FindDisk(Box::new(Command { name: name.to_owned() })))
+    let constraints =
+        if let Some(constraints) = context.node.iter_children().find(|n| n.name().value() == "constraints") {
+            Some(Constraints::from_kdl_node(constraints)?)
+        } else {
+            None
+        };
+
+    Ok(super::Command::FindDisk(Box::new(Command {
+        name: name.to_owned(),
+        constraints,
+    })))
 }
