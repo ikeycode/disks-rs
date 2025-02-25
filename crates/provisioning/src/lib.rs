@@ -8,6 +8,9 @@ use itertools::{Either, Itertools};
 use kdl::{KdlDocument, KdlNode};
 use miette::{Diagnostic, NamedSource, Severity};
 
+mod provisioner;
+pub use provisioner::*;
+
 mod errors;
 pub use errors::*;
 

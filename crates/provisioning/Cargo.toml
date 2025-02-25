@@ -7,8 +7,12 @@ edition = "2021"
 miette = { workspace = true, features = ["fancy"] }
 
 [dependencies]
+disks = { path = "../disks" }
+partitioning = { path = "../partitioning" }
 kdl = { workspace = true, features = ["span"] }
 miette = { workspace = true }
 itertools = { workspace = true }
 phf = { workspace = true, features = ["macros"] }
+test-log.workspace = true
 thiserror.workspace = true
+log.workspace = true
