@@ -39,6 +39,13 @@ pub enum Error {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
+    MissingEntry(#[from] MissingEntry),
+
+    #[error("missing node: {0}")]
+    MissingNode(&'static str),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
     MissingProperty(#[from] MissingProperty),
 
     #[diagnostic(transparent)]
@@ -79,6 +86,20 @@ pub struct MissingProperty {
     pub at: SourceSpan,
 
     pub id: &'static str,
+
+    #[help]
+    pub advice: Option<String>,
+}
+
+/// Error for missing mandatory properties
+#[derive(Debug, Diagnostic, Error)]
+#[error("missing entry: {id}")]
+#[diagnostic(severity(error))]
+pub struct MissingEntry {
+    #[label]
+    pub at: SourceSpan,
+
+    pub id: String,
 
     #[help]
     pub advice: Option<String>,
