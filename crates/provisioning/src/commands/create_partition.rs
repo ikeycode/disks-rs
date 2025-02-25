@@ -1,11 +1,33 @@
 // SPDX-FileCopyrightText: Copyright © 2025 Serpent OS Developers
+// SPDX-FileCopyrightText: Copyright © 2025 AerynOS Developers
 //
 // SPDX-License-Identifier: MPL-2.0
 
-use super::Command;
-use crate::Context;
+use crate::{get_kdl_property, get_property_str, Context, FromKdlProperty, PartitionRole};
+
+/// Command to create a partition
+#[derive(Debug)]
+pub struct Command {
+    /// The disk ID to create the partition on
+    pub disk: String,
+
+    /// The reference ID of the partition
+    pub id: String,
+
+    /// The role, if any, of the partition
+    pub role: Option<PartitionRole>,
+}
 
 /// Generate a command to create a partition
-pub(crate) fn parse(_context: Context<'_>) -> Result<Command, crate::Error> {
-    unimplemented!("Command not implemented");
+pub(crate) fn parse(context: Context<'_>) -> Result<super::Command, crate::Error> {
+    let disk = get_property_str(context.node, "disk")?;
+    let id = get_property_str(context.node, "id")?;
+    let role = if let Ok(role) = get_kdl_property(context.node, "role") {
+        Some(PartitionRole::from_kdl_property(role)?)
+    } else {
+        None
+    };
+
+    // TODO: Load constraints etc
+    Ok(super::Command::CreatePartition(Box::new(Command { disk, id, role })))
 }

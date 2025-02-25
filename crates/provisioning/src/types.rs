@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: Copyright © 2025 Serpent OS Developers
+// SPDX-FileCopyrightText: Copyright © 2025 AerynOS Developers
 //
 // SPDX-License-Identifier: MPL-2.0
 
@@ -10,6 +11,8 @@ use crate::Error;
 
 mod partition_table;
 pub use partition_table::*;
+mod partition_role;
+pub use partition_role::*;
 
 mod units;
 pub use units::*;

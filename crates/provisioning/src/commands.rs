@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: Copyright © 2025 Serpent OS Developers
+// SPDX-FileCopyrightText: Copyright © 2025 AerynOS Developers
 //
 // SPDX-License-Identifier: MPL-2.0
 
@@ -11,7 +12,7 @@ mod find_disk;
 /// A command
 #[derive(Debug)]
 pub enum Command {
-    CreatePartition,
+    CreatePartition(Box<create_partition::Command>),
     CreatePartitionTable(Box<create_partition_table::Command>),
     FindDisk(Box<find_disk::Command>),
 }
@@ -22,7 +23,7 @@ type CommandExec = for<'a> fn(Context<'a>) -> Result<Command, crate::Error>;
 /// Map of command names to functions
 static COMMANDS: phf::Map<&'static str, CommandExec> = phf::phf_map! {
     "find-disk" => find_disk::parse,
-    //"create-partition" => create_partition::parse,
+    "create-partition" => create_partition::parse,
     "create-partition-table" => create_partition_table::parse,
 };
 
