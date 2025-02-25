@@ -31,7 +31,7 @@ use crate::planner::{PlanError, Planner};
 use crate::planner::Region;
 
 /// Strategy for allocating partitions
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AllocationStrategy {
     /// Initialize a clean partition layout using the entire disk.
     /// This will remove all existing partitions and create a new layout.
@@ -64,6 +64,7 @@ pub struct PartitionRequest {
 }
 
 /// Handles planning partition layouts according to specific strategies
+#[derive(Debug, Clone)]
 pub struct Strategy {
     allocation: AllocationStrategy,
     requests: Vec<PartitionRequest>,
@@ -197,15 +198,7 @@ impl Strategy {
             });
         }
 
-        // Calculate distributable space
-        let distributable = remaining - total_fixed - min_flexible;
-        let per_flexible = if !flexible_requests.is_empty() {
-            distributable / flexible_requests.len() as u64
-        } else {
-            0
-        };
-
-        // First allocate fixed partitions
+        // First pass: allocate exact size partitions
         for request in &self.requests {
             if let SizeRequirement::Exact(size) = request.size {
                 planner.plan_add_partition(current, current + size)?;
@@ -214,26 +207,33 @@ impl Strategy {
             }
         }
 
-        // Then allocate flexible partitions with fair distribution
-        for (_, min, max_opt) in &flexible_requests {
-            let base = min + per_flexible;
-            let size = if let Some(max) = max_opt { base.min(*max) } else { base };
+        // Second pass: allocate flexible partitions
+        let mut remaining_flexible = flexible_requests.len();
+        for (_idx, min, max_opt) in &flexible_requests {
+            remaining_flexible -= 1;
+
+            let size = if remaining_flexible == 0 {
+                // Last flexible partition gets all remaining space
+                let size = remaining;
+                if let Some(max) = max_opt {
+                    size.min(*max).max(*min)
+                } else {
+                    size.max(*min)
+                }
+            } else {
+                // Other flexible partitions get fair share plus minimum
+                let share = remaining / (remaining_flexible + 1) as u64;
+                let size = min + share;
+                if let Some(max) = max_opt {
+                    size.min(*max)
+                } else {
+                    size
+                }
+            };
+
             planner.plan_add_partition(current, current + size)?;
             current += size;
             remaining -= size;
-        }
-
-        // Give any remaining space to the last flexible partition
-        if remaining > 0 && !flexible_requests.is_empty() {
-            planner.undo(); // Remove last partition
-            let (_, min, max_opt) = flexible_requests.last().unwrap();
-            let final_size = min + per_flexible + remaining;
-            let final_size = if let Some(max) = max_opt {
-                final_size.min(*max)
-            } else {
-                final_size
-            };
-            planner.plan_add_partition(current - per_flexible - min, current - per_flexible - min + final_size)?;
         }
 
         Ok(())
@@ -313,7 +313,7 @@ mod tests {
     fn test_uefi_clean_install() {
         // Test case: Clean UEFI installation with separate /home
         let disk = create_test_disk();
-        let mut planner = Planner::new(BlockDevice::mock_device(disk));
+        let mut planner = Planner::new(&BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
         // Standard UEFI layout with separate /home
@@ -347,7 +347,7 @@ mod tests {
         disk.add_partition(100 * MB, 116 * MB); // MSR
         disk.add_partition(116 * MB, 200 * GB); // Windows
 
-        let mut planner = Planner::new(BlockDevice::mock_device(disk));
+        let mut planner = Planner::new(&BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::LargestFree);
 
         // Standard Linux layout using remaining space
@@ -366,7 +366,7 @@ mod tests {
     fn test_minimal_server_install() {
         // Test case: Minimal server installation with single root partition
         let disk = create_test_disk();
-        let mut planner = Planner::new(BlockDevice::mock_device(disk));
+        let mut planner = Planner::new(&BlockDevice::mock_device(disk));
         let mut strategy = Strategy::new(AllocationStrategy::InitializeWholeDisk);
 
         // Simple layout - just boot and root
